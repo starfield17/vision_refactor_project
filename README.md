@@ -59,12 +59,12 @@ vision-refactor-project/
 ├── train/                     ← CLI entry-point: model training
 │   ├── __init__.py
 │   ├── cli.py                 ← python -m train.cli
-│   └── web.py                 ← (reserved)
+│   └── web.py                 ← python -m train.web (Streamlit, 7794)
 │
 ├── autolabel/                 ← CLI entry-point: automatic labeling
 │   ├── __init__.py
 │   ├── cli.py                 ← python -m autolabel.cli
-│   └── web.py                 ← (reserved)
+│   └── web.py                 ← python -m autolabel.web (Streamlit, 7795)
 │
 ├── deploy/                    ← CLI entry-points: deployment services
 │   ├── edge/
@@ -201,6 +201,18 @@ python -m autolabel.cli \
   --set autolabel.mode=model \
   --set autolabel.model.onnx_model=./work-dir/models/exp001/model-int8.onnx
 ```
+
+### Optional — Web UIs for Train/AutoLabel
+
+```bash
+# Train web: http://localhost:7794
+python -m train.web --config ./work-dir/config.toml --workdir ./work-dir
+
+# AutoLabel web: http://localhost:7795
+python -m autolabel.web --config ./work-dir/config.toml --workdir ./work-dir
+```
+
+Both web pages provide a `Device` selector (`cpu` or `gpu`), where `gpu` maps to `train.device=cuda:0`.
 
 ### Step 4 — Start the statistics service
 
@@ -596,4 +608,3 @@ The following **are committed**:
 - `work-dir/config.example.toml` — config template
 - `work-dir/README.md` — runtime directory documentation
 - `work-dir/.gitkeep` — keeps the directory in Git
-
