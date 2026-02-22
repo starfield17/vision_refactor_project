@@ -14,7 +14,7 @@ __pycache__/
 # Runtime outputs and large artifacts
 work-dir/**
 !work-dir/.gitkeep
-!work-dir/README.md
+!work-dir/README_work-dir.md
 !work-dir/config.example.toml
 
 # Keep local run notes/config private
