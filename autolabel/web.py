@@ -12,6 +12,8 @@ from pathlib import Path
 from typing import Any
 
 from share.config.config_loader import load_config, save_resolved_config
+from share.config.editing import load_merged_user_config, persist_config_overrides
+from share.config.schema import AUTOLABEL_CONFLICTS, AUTOLABEL_MODES, AUTOLABEL_MODEL_BACKENDS
 from share.kernel.autolabel.llm_autolabel import run_llm_autolabel
 from share.kernel.autolabel.model_autolabel import run_model_autolabel
 from share.kernel.kernel import VisionKernel
@@ -21,6 +23,13 @@ from share.types.errors import ConfigError
 
 WEB_HOST = "0.0.0.0"
 WEB_PORT = 7795
+AUTOLABEL_WEB_EDITABLE_PREFIXES = (
+    "workspace",
+    "data.labeled_dir",
+    "data.unlabeled_dir",
+    "train.device",
+    "autolabel",
+)
 
 # ---------------------------------------------------------------------------
 # Custom CSS — Modern Light Theme (consistent with statistics dashboard)
@@ -240,6 +249,22 @@ def _format_elapsed(ms: float) -> str:
     return f"{mins:.1f} min"
 
 
+def _choice_index(options: list[str], value: str, default: int = 0) -> int:
+    try:
+        return options.index(value)
+    except ValueError:
+        return default
+
+
+def _cfg_get(cfg: dict[str, Any], path: tuple[str, ...], fallback: Any) -> Any:
+    cur: Any = cfg
+    for part in path:
+        if not isinstance(cur, dict) or part not in cur:
+            return fallback
+        cur = cur[part]
+    return cur
+
+
 # ---------------------------------------------------------------------------
 # Core runner
 # ---------------------------------------------------------------------------
@@ -313,6 +338,8 @@ def _render_streamlit_ui(
         st.session_state["autolabel_web_last"] = None
     if "autolabel_run_count" not in st.session_state:
         st.session_state["autolabel_run_count"] = 0
+    if "autolabel_web_flash" not in st.session_state:
+        st.session_state["autolabel_web_flash"] = ""
 
     # ---- Sidebar: Configuration ----
     with st.sidebar:
@@ -344,19 +371,67 @@ def _render_streamlit_ui(
         run_count = st.session_state.get("autolabel_run_count", 0)
         st.caption(f"Total runs this session: **{run_count}**")
 
+    config_path_resolved = _validate_config_path(config_value)
+    editable_cfg: dict[str, Any] | None = None
+    config_load_error = ""
+    if config_path_resolved is not None:
+        try:
+            editable_cfg = load_merged_user_config(config_path_resolved)
+        except ConfigError as exc:
+            config_load_error = str(exc)
+
+    cfg = editable_cfg or {}
+    mode_options = sorted(AUTOLABEL_MODES)
+    conflict_options = sorted(AUTOLABEL_CONFLICTS)
+    model_backend_options = sorted(AUTOLABEL_MODEL_BACKENDS)
+    default_mode = str(_cfg_get(cfg, ("autolabel", "mode"), "model"))
+    default_device = str(_cfg_get(cfg, ("train", "device"), "cpu"))
+    default_device_ui = "gpu" if default_device.startswith("cuda") else "cpu"
+
     # ---- Main Area ----
     st.title("🧷 Autolabel Web")
     st.caption("Run the autolabel pipeline from your browser — model or LLM mode.")
+    flash = st.session_state.get("autolabel_web_flash", "")
+    if flash:
+        st.success(flash)
+        st.session_state["autolabel_web_flash"] = ""
 
     # ---- Parameters ----
     tab_params, tab_results, tab_logs = st.tabs(["⚡ Parameters", "📊 Results", "📜 Logs"])
 
     with tab_params:
+        st.markdown("#### Workspace & Data")
+        w1, w2, w3 = st.columns(3)
+        run_name = w1.text_input(
+            "Run Name",
+            value=str(_cfg_get(cfg, ("workspace", "run_name"), "exp001")),
+            help="workspace.run_name",
+        )
+        labeled_dir = w2.text_input(
+            "Labeled Dir",
+            value=str(_cfg_get(cfg, ("data", "labeled_dir"), "./work-dir/datasets/labeled")),
+            help="data.labeled_dir",
+        )
+        unlabeled_dir = w3.text_input(
+            "Unlabeled Dir",
+            value=str(_cfg_get(cfg, ("data", "unlabeled_dir"), "./work-dir/datasets/unlabeled")),
+            help="data.unlabeled_dir",
+        )
+
+        st.divider()
+
         st.markdown("#### Pipeline Mode & Device")
         c1, c2 = st.columns(2)
-        mode = c1.selectbox("Mode", ["model", "llm"], index=0, help="model = ONNX inference, llm = LLM API")
+        mode = c1.selectbox(
+            "Mode",
+            mode_options,
+            index=_choice_index(mode_options, default_mode),
+            help="model = ONNX inference, llm = LLM API",
+        )
         device_choice = c2.selectbox(
-            "Device", ["cpu", "gpu"], index=0,
+            "Device",
+            ["cpu", "gpu"],
+            index=0 if default_device_ui == "cpu" else 1,
             help="gpu → NVIDIA CUDA (train.device=cuda:0)",
         )
         runtime_device = _ui_device_to_runtime(device_choice)
@@ -364,17 +439,34 @@ def _render_streamlit_ui(
         st.markdown("#### General Settings")
         c3, c4, c5 = st.columns(3)
         confidence = c3.slider(
-            "Confidence Threshold", min_value=0.0, max_value=1.0, value=0.5, step=0.01,
+            "Confidence Threshold",
+            min_value=0.0,
+            max_value=1.0,
+            value=float(_cfg_get(cfg, ("autolabel", "confidence"), 0.5)),
+            step=0.01,
             help="Minimum confidence for accepting a prediction.",
         )
-        batch_size = c4.number_input("Batch Size", min_value=1, value=2, step=1)
+        batch_size = c4.number_input(
+            "Batch Size",
+            min_value=1,
+            value=int(_cfg_get(cfg, ("autolabel", "batch_size"), 2)),
+            step=1,
+        )
         on_conflict = c5.selectbox(
-            "On Conflict", ["skip", "overwrite", "merge"], index=0,
+            "On Conflict",
+            conflict_options,
+            index=_choice_index(
+                conflict_options,
+                str(_cfg_get(cfg, ("autolabel", "on_conflict"), "skip")),
+            ),
             help="How to handle labels that already exist.",
         )
 
         c6, _ = st.columns([1, 2])
-        visualize = c6.checkbox("Visualize Results", value=True)
+        visualize = c6.checkbox(
+            "Visualize Results",
+            value=bool(_cfg_get(cfg, ("autolabel", "visualize"), True)),
+        )
 
         st.divider()
 
@@ -383,59 +475,146 @@ def _render_streamlit_ui(
             st.markdown("#### 🤖 Model Settings")
             cm1, cm2 = st.columns(2)
             model_backend = cm1.selectbox(
-                "Model Backend", ["yolo", "faster_rcnn"], index=0,
+                "Model Backend",
+                model_backend_options,
+                index=_choice_index(
+                    model_backend_options,
+                    str(_cfg_get(cfg, ("autolabel", "model", "backend"), "yolo")),
+                ),
                 help="Which model backend to use for inference.",
             )
             model_path = cm2.text_input(
                 "Model Path (ONNX)",
-                value="",
+                value=str(_cfg_get(cfg, ("autolabel", "model", "onnx_model"), "")),
                 placeholder="./work-dir/models/exp001/model-int8.onnx",
             )
-            llm_max_images = 0
         else:
             st.markdown("#### 🧠 LLM Settings")
-            llm_max_images = st.number_input(
-                "Max Images (0 = all)", min_value=0, value=0, step=1,
-                help="Limit the number of images sent to the LLM. 0 means no limit.",
-            )
-            model_backend = "yolo"
-            model_path = ""
+            model_backend = str(_cfg_get(cfg, ("autolabel", "model", "backend"), "yolo"))
+            model_path = str(_cfg_get(cfg, ("autolabel", "model", "onnx_model"), ""))
+
+        st.markdown("#### 🧠 LLM API Settings")
+        l1, l2 = st.columns(2)
+        llm_base_url = l1.text_input(
+            "LLM Base URL",
+            value=str(_cfg_get(cfg, ("autolabel", "llm", "base_url"), "")),
+            help="autolabel.llm.base_url",
+        )
+        llm_model = l2.text_input(
+            "LLM Model",
+            value=str(_cfg_get(cfg, ("autolabel", "llm", "model"), "")),
+            help="autolabel.llm.model",
+        )
+        l3, l4 = st.columns(2)
+        llm_api_key_env = l3.text_input(
+            "API Key Env Name",
+            value=str(_cfg_get(cfg, ("autolabel", "llm", "api_key_env"), "")),
+            help="autolabel.llm.api_key_env",
+        )
+        llm_max_images = l4.number_input(
+            "Max Images (0 = all)",
+            min_value=0,
+            value=int(_cfg_get(cfg, ("autolabel", "llm", "max_images"), 0)),
+            step=1,
+            help="Limit the number of images sent to the LLM.",
+        )
+        llm_prompt = st.text_area(
+            "LLM Prompt",
+            value=str(_cfg_get(cfg, ("autolabel", "llm", "prompt"), "")),
+            height=100,
+            help="autolabel.llm.prompt",
+        )
+        l5, l6, l7, l8 = st.columns(4)
+        llm_timeout_sec = l5.number_input(
+            "Timeout (sec)",
+            min_value=0.1,
+            value=float(_cfg_get(cfg, ("autolabel", "llm", "timeout_sec"), 60.0)),
+            step=0.5,
+        )
+        llm_max_retries = l6.number_input(
+            "Max Retries",
+            min_value=0,
+            value=int(_cfg_get(cfg, ("autolabel", "llm", "max_retries"), 2)),
+            step=1,
+        )
+        llm_retry_backoff_sec = l7.number_input(
+            "Retry Backoff (sec)",
+            min_value=0.1,
+            value=float(_cfg_get(cfg, ("autolabel", "llm", "retry_backoff_sec"), 1.5)),
+            step=0.1,
+        )
+        llm_qps_limit = l8.number_input(
+            "QPS Limit",
+            min_value=0.1,
+            value=float(_cfg_get(cfg, ("autolabel", "llm", "qps_limit"), 1.0)),
+            step=0.1,
+        )
 
         st.divider()
 
-        # ---- Run Button ----
-        run_col, info_col = st.columns([1, 3])
+        # ---- Actions ----
+        save_col, run_col, info_col = st.columns([1, 1, 3])
+        save_clicked = save_col.button("💾 Save Config", use_container_width=True)
         run_clicked = run_col.button("🚀 Run Autolabel", type="primary", use_container_width=True)
 
         # Config validation feedback
-        config_path_resolved = _validate_config_path(config_value)
         if not config_value.strip():
             info_col.warning("⚠️ Please provide a config path.")
         elif config_path_resolved is None:
             info_col.error(f"❌ Config file not found: `{config_value}`")
+        elif config_load_error:
+            info_col.error(f"❌ Cannot read config TOML: `{config_load_error}`")
+
+        cli_overrides = [
+            f"workspace.run_name={run_name.strip()}",
+            f"data.labeled_dir={labeled_dir.strip()}",
+            f"data.unlabeled_dir={unlabeled_dir.strip()}",
+            f"autolabel.mode={mode}",
+            f"train.device={runtime_device}",
+            f"autolabel.confidence={float(confidence)}",
+            f"autolabel.visualize={str(bool(visualize)).lower()}",
+            f"autolabel.batch_size={int(batch_size)}",
+            f"autolabel.on_conflict={on_conflict}",
+            f"autolabel.model.backend={model_backend}",
+            f"autolabel.model.onnx_model={model_path.strip()}",
+            f"autolabel.llm.base_url={llm_base_url.strip()}",
+            f"autolabel.llm.model={llm_model.strip()}",
+            f"autolabel.llm.api_key_env={llm_api_key_env.strip()}",
+            f"autolabel.llm.prompt={llm_prompt}",
+            f"autolabel.llm.timeout_sec={float(llm_timeout_sec)}",
+            f"autolabel.llm.max_retries={int(llm_max_retries)}",
+            f"autolabel.llm.retry_backoff_sec={float(llm_retry_backoff_sec)}",
+            f"autolabel.llm.qps_limit={float(llm_qps_limit)}",
+            f"autolabel.llm.max_images={int(llm_max_images)}",
+        ]
+        cli_overrides.extend(_parse_override_text(extra_overrides))
+
+        if save_clicked:
+            if config_path_resolved is None:
+                st.error("Cannot save: config file path is invalid or does not exist.")
+            elif config_load_error:
+                st.error(f"Cannot save: {config_load_error}")
+            else:
+                try:
+                    persist_config_overrides(
+                        config_path=config_path_resolved,
+                        overrides=cli_overrides,
+                        allowed_prefixes=AUTOLABEL_WEB_EDITABLE_PREFIXES,
+                    )
+                    st.session_state["autolabel_web_flash"] = (
+                        f"Saved autolabel sections to {config_path_resolved}"
+                    )
+                    st.rerun()
+                except ConfigError as exc:
+                    st.error(f"**Config Error:** {exc}")
 
         if run_clicked:
             if config_path_resolved is None:
                 st.error("Cannot run: config file path is invalid or does not exist.")
+            elif config_load_error:
+                st.error(f"Cannot run: {config_load_error}")
             else:
                 try:
-                    cli_overrides = [
-                        f"autolabel.mode={mode}",
-                        f"train.device={runtime_device}",
-                        f"autolabel.confidence={float(confidence)}",
-                        f"autolabel.visualize={str(bool(visualize)).lower()}",
-                        f"autolabel.batch_size={int(batch_size)}",
-                        f"autolabel.on_conflict={on_conflict}",
-                    ]
-                    if mode == "model":
-                        cli_overrides.append(f"autolabel.model.backend={model_backend}")
-                        if model_path.strip():
-                            cli_overrides.append(f"autolabel.model.onnx_model={model_path.strip()}")
-                    else:
-                        cli_overrides.append(f"autolabel.llm.max_images={int(llm_max_images)}")
-
-                    cli_overrides.extend(_parse_override_text(extra_overrides))
-
                     with st.spinner("Running autolabel pipeline..."):
                         result = _run_autolabel_once(
                             config_path=config_path_resolved,
@@ -558,4 +737,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

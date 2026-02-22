@@ -212,7 +212,11 @@ python -m train.web --config ./work-dir/config.toml --workdir ./work-dir
 python -m autolabel.web --config ./work-dir/config.toml --workdir ./work-dir
 ```
 
-Both web pages provide a `Device` selector (`cpu` or `gpu`), where `gpu` maps to `train.device=cuda:0`.
+Both web pages provide a `Device` selector (`cpu` or `gpu`), where `gpu` maps to
+`train.device=cuda:0`.
+
+Train/AutoLabel web UIs now also include **Save Config** buttons so you can persist
+their section settings directly into `work-dir/config.toml` before running.
 
 ### Step 4 — Start the statistics service
 
@@ -286,6 +290,19 @@ python -m train.cli --config ./work-dir/config.toml \
 ```
 
 Dotted key paths are supported for any nesting depth (`section.subsection.key=value`).
+
+For `train.cli` and `autolabel.cli`, you can also persist CLI changes into
+`config.toml`:
+
+```bash
+python -m train.cli \
+  --config ./work-dir/config.toml \
+  --epochs 50 \
+  --backend yolo \
+  --save-config --config-only
+```
+
+`--config-only` applies updates and exits; omit it to save and run in one command.
 
 ---
 
@@ -513,6 +530,14 @@ All CLIs (`train.cli`, `autolabel.cli`, `deploy.edge.cli`, `deploy.remote.cli`,
 | `--config PATH` | Yes | Path to `config.toml` |
 | `--workdir PATH` | No | Override `workspace.root` from config |
 | `--set KEY=VALUE` | No | Override any config key (repeatable) |
+
+Train and AutoLabel CLIs additionally support granular section flags (for example
+`--epochs`, `--backend`, `--mode`, `--llm-base-url`) plus:
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--save-config` | No | Persist current granular flags and `--set` values to `config.toml` |
+| `--config-only` | No | Only update `config.toml`, do not execute the pipeline (requires `--save-config`) |
 
 ---
 

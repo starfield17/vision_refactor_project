@@ -12,6 +12,8 @@ from pathlib import Path
 from typing import Any
 
 from share.config.config_loader import load_config, save_resolved_config
+from share.config.editing import load_merged_user_config, persist_config_overrides
+from share.config.schema import FASTER_RCNN_VARIANTS, QUANTIZE_MODES, TRAIN_BACKENDS
 from share.kernel.kernel import VisionKernel
 from share.kernel.registry import KernelRegistry
 from share.kernel.trainer.faster_rcnn import run_faster_rcnn_train
@@ -21,6 +23,7 @@ from share.types.errors import ConfigError
 
 WEB_HOST = "0.0.0.0"
 WEB_PORT = 7794
+TRAIN_WEB_EDITABLE_PREFIXES = ("workspace", "data.yolo_dataset_dir", "train", "export")
 
 # ---------------------------------------------------------------------------
 # Custom CSS — Modern Light Theme (consistent with statistics dashboard)
@@ -243,6 +246,22 @@ def _format_elapsed(ms: float) -> str:
     return f"{mins:.1f} min"
 
 
+def _choice_index(options: list[str], value: str, default: int = 0) -> int:
+    try:
+        return options.index(value)
+    except ValueError:
+        return default
+
+
+def _cfg_get(cfg: dict[str, Any], path: tuple[str, ...], fallback: Any) -> Any:
+    cur: Any = cfg
+    for part in path:
+        if not isinstance(cur, dict) or part not in cur:
+            return fallback
+        cur = cur[part]
+    return cur
+
+
 # ---------------------------------------------------------------------------
 # Core runner
 # ---------------------------------------------------------------------------
@@ -316,6 +335,8 @@ def _render_streamlit_ui(
         st.session_state["train_web_last"] = None
     if "train_run_count" not in st.session_state:
         st.session_state["train_run_count"] = 0
+    if "train_web_flash" not in st.session_state:
+        st.session_state["train_web_flash"] = ""
 
     # ---- Sidebar: Configuration ----
     with st.sidebar:
@@ -346,26 +367,67 @@ def _render_streamlit_ui(
         run_count = st.session_state.get("train_run_count", 0)
         st.caption(f"Total runs this session: **{run_count}**")
 
+    config_path_resolved = _validate_config_path(config_value)
+    editable_cfg: dict[str, Any] | None = None
+    config_load_error = ""
+    if config_path_resolved is not None:
+        try:
+            editable_cfg = load_merged_user_config(config_path_resolved)
+        except ConfigError as exc:
+            config_load_error = str(exc)
+
+    cfg = editable_cfg or {}
+    backend_options = sorted(TRAIN_BACKENDS)
+    frcnn_options = sorted(FASTER_RCNN_VARIANTS)
+    quantize_options = sorted(QUANTIZE_MODES)
+    default_backend = str(_cfg_get(cfg, ("train", "backend"), "yolo"))
+    default_device = str(_cfg_get(cfg, ("train", "device"), "cpu"))
+    default_device_ui = "gpu" if default_device.startswith("cuda") else "cpu"
+
     # ---- Main Area ----
     st.title("🎯 Train Web")
     st.caption("Run the training pipeline from your browser — kernel-backed, same behavior as CLI.")
+    flash = st.session_state.get("train_web_flash", "")
+    if flash:
+        st.success(flash)
+        st.session_state["train_web_flash"] = ""
 
     tab_params, tab_results, tab_logs = st.tabs(["⚡ Parameters", "📊 Results", "📜 Logs"])
 
     with tab_params:
+        st.markdown("#### Workspace & Data")
+        w1, w2 = st.columns(2)
+        run_name = w1.text_input(
+            "Run Name",
+            value=str(_cfg_get(cfg, ("workspace", "run_name"), "exp001")),
+            help="workspace.run_name",
+        )
+        dataset_dir = w2.text_input(
+            "YOLO Dataset Dir",
+            value=str(_cfg_get(cfg, ("data", "yolo_dataset_dir"), "")),
+            help="data.yolo_dataset_dir",
+        )
+
+        st.divider()
+
         # ---- Backend & Device ----
         st.markdown("#### Backend & Device")
         c1, c2, c3 = st.columns(3)
         backend = c1.selectbox(
-            "Backend", ["yolo", "faster_rcnn"], index=0,
+            "Backend",
+            backend_options,
+            index=_choice_index(backend_options, default_backend),
             help="Training backend: YOLO or Faster R-CNN.",
         )
         device_choice = c2.selectbox(
-            "Device", ["cpu", "gpu"], index=0,
+            "Device",
+            ["cpu", "gpu"],
+            index=0 if default_device_ui == "cpu" else 1,
             help="gpu → NVIDIA CUDA (train.device=cuda:0)",
         )
         dry_run = c3.checkbox(
-            "Dry Run", value=False,
+            "Dry Run",
+            value=bool(_cfg_get(cfg, ("train", "dry_run"), False)),
             help="When enabled, validate the config without actually training.",
         )
         runtime_device = _ui_device_to_runtime(device_choice)
@@ -373,10 +435,30 @@ def _render_streamlit_ui(
         # ---- Training Hyperparameters ----
         st.markdown("#### Training Hyperparameters")
         c4, c5, c6, c7 = st.columns(4)
-        epochs = c4.number_input("Epochs", min_value=1, value=1, step=1)
-        batch_size = c5.number_input("Batch Size", min_value=1, value=4, step=1)
-        img_size = c6.number_input("Image Size", min_value=32, value=640, step=32)
-        seed = c7.number_input("Random Seed", min_value=0, value=42, step=1)
+        epochs = c4.number_input(
+            "Epochs",
+            min_value=1,
+            value=int(_cfg_get(cfg, ("train", "epochs"), 1)),
+            step=1,
+        )
+        batch_size = c5.number_input(
+            "Batch Size",
+            min_value=1,
+            value=int(_cfg_get(cfg, ("train", "batch_size"), 4)),
+            step=1,
+        )
+        img_size = c6.number_input(
+            "Image Size",
+            min_value=32,
+            value=int(_cfg_get(cfg, ("train", "img_size"), 640)),
+            step=32,
+        )
+        seed = c7.number_input(
+            "Random Seed",
+            min_value=0,
+            value=int(_cfg_get(cfg, ("train", "seed"), 42)),
+            step=1,
+        )
 
         st.divider()
 
@@ -385,94 +467,178 @@ def _render_streamlit_ui(
             st.markdown("#### 🟢 YOLO Settings")
             yolo_weights = st.text_input(
                 "YOLO Weights",
-                value="",
+                value=str(_cfg_get(cfg, ("train", "yolo", "weights"), "")),
                 placeholder="./weights/yolo.pt",
                 help="Path to pretrained YOLO weights file.",
             )
             # Faster R-CNN defaults (not used)
-            frcnn_variant = "mobilenet_v3"
-            frcnn_lr = 0.005
-            frcnn_momentum = 0.9
-            frcnn_weight_decay = 0.0005
-            frcnn_num_workers = 0
-            frcnn_max_samples = 0
+            frcnn_variant = str(_cfg_get(cfg, ("train", "faster_rcnn", "variant"), "mobilenet_v3"))
+            frcnn_lr = float(_cfg_get(cfg, ("train", "faster_rcnn", "lr"), 0.005))
+            frcnn_momentum = float(_cfg_get(cfg, ("train", "faster_rcnn", "momentum"), 0.9))
+            frcnn_weight_decay = float(
+                _cfg_get(cfg, ("train", "faster_rcnn", "weight_decay"), 0.0005)
+            )
+            frcnn_num_workers = int(_cfg_get(cfg, ("train", "faster_rcnn", "num_workers"), 0))
+            frcnn_max_samples = int(_cfg_get(cfg, ("train", "faster_rcnn", "max_samples"), 0))
         else:
             st.markdown("#### 🔵 Faster R-CNN Settings")
             fc1, fc2 = st.columns(2)
             frcnn_variant = fc1.selectbox(
                 "Variant",
-                ["mobilenet_v3", "resnet50_fpn", "resnet50_fpn_v2", "resnet18_fpn"],
-                index=0,
+                frcnn_options,
+                index=_choice_index(
+                    frcnn_options,
+                    str(_cfg_get(cfg, ("train", "faster_rcnn", "variant"), "mobilenet_v3")),
+                ),
                 help="Backbone architecture for Faster R-CNN.",
             )
             frcnn_lr = fc2.number_input(
-                "Learning Rate", min_value=0.0001, value=0.005,
+                "Learning Rate",
+                min_value=0.0001,
+                value=float(_cfg_get(cfg, ("train", "faster_rcnn", "lr"), 0.005)),
                 step=0.001, format="%.4f",
             )
             fc3, fc4, fc5 = st.columns(3)
             frcnn_momentum = fc3.number_input(
                 "Momentum", min_value=0.0, max_value=1.0,
-                value=0.9, step=0.01, format="%.2f",
+                value=float(_cfg_get(cfg, ("train", "faster_rcnn", "momentum"), 0.9)),
+                step=0.01,
+                format="%.2f",
             )
             frcnn_weight_decay = fc4.number_input(
-                "Weight Decay", min_value=0.0, value=0.0005,
-                step=0.0001, format="%.4f",
+                "Weight Decay",
+                min_value=0.0,
+                value=float(_cfg_get(cfg, ("train", "faster_rcnn", "weight_decay"), 0.0005)),
+                step=0.0001,
+                format="%.4f",
             )
             frcnn_num_workers = fc5.number_input(
-                "Num Workers", min_value=0, value=0, step=1,
+                "Num Workers",
+                min_value=0,
+                value=int(_cfg_get(cfg, ("train", "faster_rcnn", "num_workers"), 0)),
+                step=1,
                 help="DataLoader workers. 0 = main process.",
             )
             frcnn_max_samples = st.number_input(
-                "Max Samples (0 = all)", min_value=0, value=0, step=100,
+                "Max Samples (0 = all)",
+                min_value=0,
+                value=int(_cfg_get(cfg, ("train", "faster_rcnn", "max_samples"), 0)),
+                step=100,
                 help="Limit the dataset size for debugging. 0 means use all data.",
             )
             # YOLO defaults (not used)
-            yolo_weights = ""
+            yolo_weights = str(_cfg_get(cfg, ("train", "yolo", "weights"), ""))
 
         st.divider()
 
-        # ---- Run Button ----
-        run_col, info_col = st.columns([1, 3])
+        # ---- Export Settings ----
+        st.markdown("#### Export Settings")
+        e1, e2, e3, e4, e5 = st.columns(5)
+        export_onnx = e1.checkbox(
+            "Export ONNX",
+            value=bool(_cfg_get(cfg, ("export", "onnx"), True)),
+            help="export.onnx",
+        )
+        export_quantize = e2.checkbox(
+            "Quantize",
+            value=bool(_cfg_get(cfg, ("export", "quantize"), True)),
+            help="export.quantize",
+        )
+        export_opset = e3.number_input(
+            "ONNX Opset",
+            min_value=1,
+            value=int(_cfg_get(cfg, ("export", "opset"), 17)),
+            step=1,
+        )
+        export_quantize_mode = e4.selectbox(
+            "Quantize Mode",
+            quantize_options,
+            index=_choice_index(
+                quantize_options,
+                str(_cfg_get(cfg, ("export", "quantize_mode"), "dynamic")),
+            ),
+        )
+        export_calib_samples = e5.number_input(
+            "Calib Samples",
+            min_value=0,
+            value=int(_cfg_get(cfg, ("export", "calib_samples"), 32)),
+            step=1,
+        )
+
+        st.divider()
+
+        # ---- Actions ----
+        save_col, run_col, info_col = st.columns([1, 1, 3])
+        save_clicked = save_col.button("💾 Save Config", use_container_width=True)
         run_clicked = run_col.button("🚀 Run Train", type="primary", use_container_width=True)
 
         # Config validation feedback
-        config_path_resolved = _validate_config_path(config_value)
         if not config_value.strip():
             info_col.warning("⚠️ Please provide a config path.")
         elif config_path_resolved is None:
             info_col.error(f"❌ Config file not found: `{config_value}`")
+        elif config_load_error:
+            info_col.error(f"❌ Cannot read config TOML: `{config_load_error}`")
         elif dry_run:
             info_col.info("ℹ️ Dry-run mode — config will be validated only.")
+
+        cli_overrides = [
+            f"workspace.run_name={run_name.strip()}",
+            f"data.yolo_dataset_dir={dataset_dir.strip()}",
+            f"train.backend={backend}",
+            f"train.device={runtime_device}",
+            f"train.dry_run={str(bool(dry_run)).lower()}",
+            f"train.epochs={int(epochs)}",
+            f"train.batch_size={int(batch_size)}",
+            f"train.img_size={int(img_size)}",
+            f"train.seed={int(seed)}",
+            f"export.onnx={str(bool(export_onnx)).lower()}",
+            f"export.opset={int(export_opset)}",
+            f"export.quantize={str(bool(export_quantize)).lower()}",
+            f"export.quantize_mode={export_quantize_mode}",
+            f"export.calib_samples={int(export_calib_samples)}",
+        ]
+        if backend == "yolo":
+            cli_overrides.append(f"train.yolo.weights={yolo_weights.strip()}")
+        else:
+            cli_overrides.extend(
+                [
+                    f"train.faster_rcnn.variant={frcnn_variant}",
+                    f"train.faster_rcnn.lr={frcnn_lr}",
+                    f"train.faster_rcnn.momentum={frcnn_momentum}",
+                    f"train.faster_rcnn.weight_decay={frcnn_weight_decay}",
+                    f"train.faster_rcnn.num_workers={int(frcnn_num_workers)}",
+                    f"train.faster_rcnn.max_samples={int(frcnn_max_samples)}",
+                ]
+            )
+        cli_overrides.extend(_parse_override_text(extra_overrides))
+
+        if save_clicked:
+            if config_path_resolved is None:
+                st.error("Cannot save: config file path is invalid or does not exist.")
+            elif config_load_error:
+                st.error(f"Cannot save: {config_load_error}")
+            else:
+                try:
+                    persist_config_overrides(
+                        config_path=config_path_resolved,
+                        overrides=cli_overrides,
+                        allowed_prefixes=TRAIN_WEB_EDITABLE_PREFIXES,
+                    )
+                    st.session_state["train_web_flash"] = (
+                        f"Saved training sections to {config_path_resolved}"
+                    )
+                    st.rerun()
+                except ConfigError as exc:
+                    st.error(f"**Config Error:** {exc}")
 
         if run_clicked:
             if config_path_resolved is None:
                 st.error("Cannot run: config file path is invalid or does not exist.")
+            elif config_load_error:
+                st.error(f"Cannot run: {config_load_error}")
             else:
                 try:
-                    cli_overrides = [
-                        f"train.backend={backend}",
-                        f"train.device={runtime_device}",
-                        f"train.dry_run={str(bool(dry_run)).lower()}",
-                        f"train.epochs={int(epochs)}",
-                        f"train.batch_size={int(batch_size)}",
-                        f"train.img_size={int(img_size)}",
-                        f"train.seed={int(seed)}",
-                    ]
-                    if backend == "yolo":
-                        if yolo_weights.strip():
-                            cli_overrides.append(f"train.yolo.weights={yolo_weights.strip()}")
-                    else:
-                        cli_overrides.extend([
-                            f"train.faster_rcnn.variant={frcnn_variant}",
-                            f"train.faster_rcnn.lr={frcnn_lr}",
-                            f"train.faster_rcnn.momentum={frcnn_momentum}",
-                            f"train.faster_rcnn.weight_decay={frcnn_weight_decay}",
-                            f"train.faster_rcnn.num_workers={int(frcnn_num_workers)}",
-                            f"train.faster_rcnn.max_samples={int(frcnn_max_samples)}",
-                        ])
-
-                    cli_overrides.extend(_parse_override_text(extra_overrides))
-
                     with st.spinner("Running training pipeline..."):
                         result = _run_train_once(
                             config_path=config_path_resolved,
@@ -595,4 +761,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
