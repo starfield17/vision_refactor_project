@@ -279,7 +279,7 @@ The following are **kept** in Git:
 
 ```gitignore
 !work-dir/config.example.toml
-!work-dir/README.md
+!work-dir/README_work-dir.md
 !work-dir/.gitkeep
 ```
 
