@@ -1,0 +1,124 @@
+[app]
+schema_version = 1
+
+[workspace]
+root = "./work-dir"
+run_name = "exp001"
+log_file = "log.txt"
+log_level = "INFO"
+
+[class_map]
+names = ["Kitchen_waste", "Recyclable_waste", "Hazardous_waste", "Other_waste"]
+id_map = { Kitchen_waste = 0, Recyclable_waste = 1, Hazardous_waste = 2, Other_waste = 3 }
+
+[data]
+yolo_dataset_dir = "./work-dir/datasets/yolo"
+labeled_dir = "./work-dir/datasets/labeled"
+unlabeled_dir = "./work-dir/datasets/unlabeled"
+
+[train]
+backend = "yolo"
+device = "cpu"
+seed = 42
+epochs = 1
+batch_size = 4
+img_size = 640
+dry_run = true
+
+[train.yolo]
+weights = "./weights/yolo.pt"
+
+[train.faster_rcnn]
+variant = "mobilenet_v3"
+lr = 0.005
+momentum = 0.9
+weight_decay = 0.0005
+num_workers = 0
+max_samples = 0
+
+[export]
+onnx = true
+opset = 17
+quantize = true
+quantize_mode = "dynamic"
+calib_samples = 32
+
+[autolabel]
+mode = "model"
+confidence = 0.5
+batch_size = 2
+visualize = true
+on_conflict = "skip"
+
+[autolabel.llm]
+base_url = ""
+model = ""
+api_key_env = ""
+prompt = ""
+timeout_sec = 60.0
+max_retries = 2
+retry_backoff_sec = 1.5
+qps_limit = 1.0
+max_images = 0
+
+[autolabel.model]
+onnx_model = "./work-dir/models/exp001/model-int8.onnx"
+backend = "yolo"
+
+[deploy.edge]
+source_id = "edge-001"
+mode = "local"
+source = "images"
+camera_id = 0
+video_path = ""
+images_dir = "./work-dir/datasets/smoke/images"
+fps_limit = 10
+jpeg_quality = 80
+confidence = 0.5
+local_model = "./work-dir/models/exp001/model-int8.onnx"
+stats_endpoint = "http://127.0.0.1:7797/api/v1/push"
+api_key = ""
+stats_timeout_sec = 2.0
+save_annotated = true
+max_frames = 0
+stream_endpoint = "http://127.0.0.1:60051/api/v1/frame"
+stream_timeout_sec = 5.0
+stream_api_key = ""
+
+[deploy.edge.llm]
+base_url = ""
+model = ""
+api_key_env = ""
+prompt = ""
+timeout_sec = 60.0
+max_retries = 2
+retry_backoff_sec = 1.5
+qps_limit = 1.0
+
+[deploy.remote]
+source_id = "remote-001"
+listen_host = "0.0.0.0"
+listen_port = 60051
+model = "./work-dir/models/exp001/model.onnx"
+confidence = 0.5
+stats_endpoint = "http://127.0.0.1:7797/api/v1/push"
+api_key = ""
+ingest_api_key = ""
+stats_timeout_sec = 2.0
+save_annotated = false
+max_payload_mb = 8
+
+[deploy.statistics]
+ui_port = 7796
+api_port = 7797
+storage = "sqlite"
+db_path = "./work-dir/stats/stats.db"
+public_host = "0.0.0.0"
+api_key = ""
+rate_limit_per_sec = 0
+
+[logging]
+jsonl = true
+
+[statistics]
+flush_interval_sec = 5

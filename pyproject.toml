@@ -1,0 +1,23 @@
+[project]
+name = "vision-refactor-project"
+version = "0.1.0"
+description = "Modular vision refactor project (Phase 5 completed)"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "ultralytics>=8.4.0",
+  "opencv-python>=4.9.0",
+  "onnx>=1.16.0",
+  "onnxruntime>=1.18.0",
+  "onnxconverter-common>=1.14.0",
+  "fastapi>=0.115.0",
+  "uvicorn>=0.30.0",
+  "streamlit>=1.40.0",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

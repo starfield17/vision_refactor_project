@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Runtime outputs and large artifacts
+work-dir/**
+!work-dir/.gitkeep
+!work-dir/README.md
+!work-dir/config.example.toml
+
+# Keep local run notes/config private
+codex.md
+work-dir/config.toml
+work-dir/config.resolved.toml
+
+# Model / data artifacts (prevent accidental commit)
+*.pt
+*.onnx
+*.engine
+*.bin
+*.db
+*.log
+*.pid
+*.zip
+
+# Optional local env
+.env
+.env.*
