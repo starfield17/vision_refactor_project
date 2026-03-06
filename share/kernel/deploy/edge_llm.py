@@ -133,7 +133,11 @@ def run_edge_llm_deploy(cfg: dict[str, Any], run_ctx: dict[str, Any]) -> dict[st
     class_names = list(cfg["class_map"]["names"])
     class_id_map = {str(k): int(v) for k, v in dict(cfg["class_map"]["id_map"]).items()}
     confidence = float(edge_cfg["confidence"])
-    api_key = load_api_key(str(llm_cfg["api_key_env"]))
+    api_key = load_api_key(
+        direct_api_key=str(llm_cfg.get("api_key", "")),
+        api_key_env_name=str(llm_cfg.get("api_key_env_name", "")),
+        legacy_api_key_env=str(llm_cfg.get("api_key_env", "")),
+    )
     prompt = build_system_prompt(
         base_prompt=str(llm_cfg["prompt"]),
         class_names=class_names,
@@ -218,6 +222,11 @@ def run_edge_llm_deploy(cfg: dict[str, Any], run_ctx: dict[str, Any]) -> dict[st
             total_detections=len(detections),
             counts_by_class=counts_by_class,
             latency_ms=latency_ms,
+            request_id=f"{run_id}:{source_id}:{packet.frame_index}",
+            run_id=run_id,
+            model_id=f"llm:{model}",
+            backend="llm",
+            transport_mode="edge-llm",
         )
         append_stats_snapshot(snapshot_path, event)
 

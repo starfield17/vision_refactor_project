@@ -71,6 +71,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "llm": {
             "base_url": "",
             "model": "",
+            "api_key": "",
+            "api_key_env_name": "",
             "api_key_env": "",
             "prompt": "",
             "timeout_sec": 60.0,
@@ -104,6 +106,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
             "llm": {
                 "base_url": "",
                 "model": "",
+                "api_key": "",
+                "api_key_env_name": "",
                 "api_key_env": "",
                 "prompt": "",
                 "timeout_sec": 60.0,
@@ -283,6 +287,8 @@ def validate_config(cfg: dict[str, Any]) -> dict[str, Any]:
     autolabel_llm = _expect_type(autolabel, "llm", dict, "autolabel")
     _expect_type(autolabel_llm, "base_url", str, "autolabel.llm")
     _expect_type(autolabel_llm, "model", str, "autolabel.llm")
+    _expect_type(autolabel_llm, "api_key", str, "autolabel.llm")
+    _expect_type(autolabel_llm, "api_key_env_name", str, "autolabel.llm")
     _expect_type(autolabel_llm, "api_key_env", str, "autolabel.llm")
     _expect_type(autolabel_llm, "prompt", str, "autolabel.llm")
     timeout_sec = _expect_type(autolabel_llm, "timeout_sec", (int, float), "autolabel.llm")
@@ -307,6 +313,14 @@ def validate_config(cfg: dict[str, Any]) -> dict[str, Any]:
             raise ConfigError("autolabel.llm.base_url/model must not be empty in llm mode")
         if not autolabel_llm["prompt"]:
             raise ConfigError("autolabel.llm.prompt must not be empty in llm mode")
+        if not (
+            autolabel_llm["api_key"]
+            or autolabel_llm["api_key_env_name"]
+            or autolabel_llm["api_key_env"]
+        ):
+            raise ConfigError(
+                "autolabel.llm requires api_key, api_key_env_name, or legacy api_key_env in llm mode"
+            )
 
     deploy_cfg = _expect_type(cfg, "deploy", dict, "root")
 
@@ -348,6 +362,8 @@ def validate_config(cfg: dict[str, Any]) -> dict[str, Any]:
     edge_llm_cfg = _expect_type(edge_cfg, "llm", dict, "deploy.edge")
     _expect_type(edge_llm_cfg, "base_url", str, "deploy.edge.llm")
     _expect_type(edge_llm_cfg, "model", str, "deploy.edge.llm")
+    _expect_type(edge_llm_cfg, "api_key", str, "deploy.edge.llm")
+    _expect_type(edge_llm_cfg, "api_key_env_name", str, "deploy.edge.llm")
     _expect_type(edge_llm_cfg, "api_key_env", str, "deploy.edge.llm")
     _expect_type(edge_llm_cfg, "prompt", str, "deploy.edge.llm")
     edge_llm_timeout = _expect_type(edge_llm_cfg, "timeout_sec", (int, float), "deploy.edge.llm")
@@ -369,8 +385,14 @@ def validate_config(cfg: dict[str, Any]) -> dict[str, Any]:
             raise ConfigError("deploy.edge.llm.base_url/model must not be empty in llm mode")
         if not edge_llm_cfg["prompt"]:
             raise ConfigError("deploy.edge.llm.prompt must not be empty in llm mode")
-        if not edge_llm_cfg["api_key_env"]:
-            raise ConfigError("deploy.edge.llm.api_key_env must not be empty in llm mode")
+        if not (
+            edge_llm_cfg["api_key"]
+            or edge_llm_cfg["api_key_env_name"]
+            or edge_llm_cfg["api_key_env"]
+        ):
+            raise ConfigError(
+                "deploy.edge.llm requires api_key, api_key_env_name, or legacy api_key_env in llm mode"
+            )
 
     remote_cfg = _expect_type(deploy_cfg, "remote", dict, "deploy")
     _expect_type(remote_cfg, "source_id", str, "deploy.remote")

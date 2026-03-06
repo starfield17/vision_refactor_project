@@ -9,6 +9,7 @@ from typing import Any
 
 from share.kernel.deploy.edge_common import append_stats_snapshot
 from share.kernel.infer.local_yolo import LocalYoloInferencer
+from share.kernel.model_manifest import resolve_model_identity
 from share.kernel.transport.frame_http import decode_jpeg_base64, encode_jpeg_base64
 from share.kernel.transport.stats_http import push_stats_event
 from share.types.detection import Detection
@@ -19,6 +20,8 @@ from share.types.stats import StatsEvent
 @dataclass(slots=True)
 class _FrameRequest:
     schema_version: int
+    request_id: str
+    run_id: str
     source_id: str
     frame_index: int
     frame_name: str
@@ -30,6 +33,8 @@ class _FrameRequest:
         try:
             req = cls(
                 schema_version=int(payload["schema_version"]),
+                request_id=str(payload.get("request_id", "")),
+                run_id=str(payload.get("run_id", "")),
                 source_id=str(payload["source_id"]),
                 frame_index=int(payload["frame_index"]),
                 frame_name=str(payload["frame_name"]),
@@ -46,6 +51,8 @@ class _FrameRequest:
             raise DataValidationError(
                 f"unsupported stream payload schema_version={self.schema_version}"
             )
+        if not self.request_id:
+            raise DataValidationError("request_id is required")
         if not self.source_id:
             raise DataValidationError("source_id is required")
         if self.frame_index < 0:
@@ -101,6 +108,11 @@ def create_remote_app(
 
     snapshot_path = run_dir / "stats.jsonl"
     output_dir = Path(cfg["workspace"]["root"]) / "outputs" / run_id / "annotated_frames"
+    model_meta = resolve_model_identity(
+        Path(remote_cfg["model"]),
+        default_backend="yolo",
+        default_model_id=f"remote:{Path(remote_cfg['model']).stem}",
+    )
     counters = {
         "frames_processed": 0,
         "detections_total": 0,
@@ -143,6 +155,11 @@ def create_remote_app(
             total_detections=total_detections,
             counts_by_class=counts_by_class,
             latency_ms=latency_ms,
+            request_id=req.request_id,
+            run_id=run_id,
+            model_id=model_meta["model_id"],
+            backend=model_meta["backend"],
+            transport_mode="remote-frame-api",
         )
         append_stats_snapshot(snapshot_path, event)
 
@@ -170,13 +187,28 @@ def create_remote_app(
 
         response: dict[str, Any] = {
             "ok": True,
+            "schema_version": 1,
             "run_id": run_id,
+            "request_id": req.request_id,
             "source_id": req.source_id,
             "frame_index": req.frame_index,
             "frame_name": req.frame_name,
+            "backend": model_meta["backend"],
+            "model_id": model_meta["model_id"],
             "total_detections": total_detections,
             "counts_by_class": counts_by_class,
             "latency_ms": latency_ms,
+            "detections": [det.to_dict() for det in detections],
+            "metadata": {
+                "schema_version": 1,
+                "request_id": req.request_id,
+                "edge_run_id": req.run_id,
+                "remote_run_id": run_id,
+                "backend": model_meta["backend"],
+                "model_id": model_meta["model_id"],
+                "manifest_path": model_meta["manifest_path"],
+                "inference_ms": latency_ms,
+            },
         }
 
         if req.return_annotated or save_annotated:
@@ -216,6 +248,11 @@ def run_remote_deploy(cfg: dict[str, Any], run_ctx: dict[str, Any]) -> dict[str,
     run_dir = Path(str(run_ctx["run_dir"]))
     logger = run_ctx["logger"]
     model_path = Path(remote_cfg["model"])
+    model_meta = resolve_model_identity(
+        model_path,
+        default_backend="yolo",
+        default_model_id=f"remote:{model_path.stem}",
+    )
 
     inferencer = LocalYoloInferencer(
         model_path=model_path,
@@ -259,6 +296,9 @@ def run_remote_deploy(cfg: dict[str, Any], run_ctx: dict[str, Any]) -> dict[str,
         "listen_host": host,
         "listen_port": port,
         "model_path": str(model_path),
+        "model_manifest_path": model_meta["manifest_path"],
+        "model_id": model_meta["model_id"],
+        "backend": model_meta["backend"],
         "stats_endpoint": str(remote_cfg["stats_endpoint"]),
         "stats_snapshot_path": str(run_dir / "stats.jsonl"),
         "stats": counters,

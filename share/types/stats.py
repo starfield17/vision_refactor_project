@@ -17,6 +17,11 @@ class StatsEvent:
     total_detections: int
     counts_by_class: dict[str, int]
     latency_ms: float
+    request_id: str = ""
+    run_id: str = ""
+    model_id: str = ""
+    backend: str = ""
+    transport_mode: str = ""
 
     def validate(self) -> None:
         if self.schema_version != 1:
@@ -42,6 +47,11 @@ class StatsEvent:
             "total_detections": self.total_detections,
             "counts_by_class": self.counts_by_class,
             "latency_ms": self.latency_ms,
+            "request_id": self.request_id,
+            "run_id": self.run_id,
+            "model_id": self.model_id,
+            "backend": self.backend,
+            "transport_mode": self.transport_mode,
         }
 
     @classmethod
@@ -51,6 +61,11 @@ class StatsEvent:
         total_detections: int,
         counts_by_class: dict[str, int],
         latency_ms: float,
+        request_id: str = "",
+        run_id: str = "",
+        model_id: str = "",
+        backend: str = "",
+        transport_mode: str = "",
     ) -> "StatsEvent":
         return cls(
             schema_version=1,
@@ -59,6 +74,11 @@ class StatsEvent:
             total_detections=total_detections,
             counts_by_class=counts_by_class,
             latency_ms=latency_ms,
+            request_id=request_id,
+            run_id=run_id,
+            model_id=model_id,
+            backend=backend,
+            transport_mode=transport_mode,
         )
 
     @classmethod
@@ -71,6 +91,11 @@ class StatsEvent:
                 total_detections=int(raw["total_detections"]),
                 counts_by_class={str(k): int(v) for k, v in dict(raw["counts_by_class"]).items()},
                 latency_ms=float(raw["latency_ms"]),
+                request_id=str(raw.get("request_id", "")),
+                run_id=str(raw.get("run_id", "")),
+                model_id=str(raw.get("model_id", "")),
+                backend=str(raw.get("backend", "")),
+                transport_mode=str(raw.get("transport_mode", "")),
             )
         except (KeyError, TypeError, ValueError) as exc:
             raise DataValidationError(f"Invalid stats payload: {exc}") from exc

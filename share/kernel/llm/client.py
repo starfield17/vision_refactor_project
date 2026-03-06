@@ -26,21 +26,38 @@ class HTTPCallError(Exception):
         return self.status_code in {408, 409, 425, 429} or self.status_code >= 500
 
 
-def load_api_key(api_key_env: str) -> str:
-    if not api_key_env:
-        raise DataValidationError("llm api_key_env must not be empty")
-    value = os.getenv(api_key_env)
-    if value:
-        return value
-    # Backward-compatible: accept direct key string for non-env-name values.
-    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", api_key_env):
-        return api_key_env
-    if api_key_env.startswith("sk-"):
-        return api_key_env
-    raise DataValidationError(
-        f"env var not found for api_key_env: {api_key_env}. "
-        "Either export this env var or fill api_key_env with a direct key."
-    )
+_ENV_VAR_NAME_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+
+
+def load_api_key(
+    *,
+    direct_api_key: str = "",
+    api_key_env_name: str = "",
+    legacy_api_key_env: str = "",
+) -> str:
+    if direct_api_key:
+        return direct_api_key
+
+    if api_key_env_name:
+        value = os.getenv(api_key_env_name)
+        if value:
+            return value
+        raise DataValidationError(
+            f"env var not found for api_key_env_name: {api_key_env_name}. Export it or set api_key directly."
+        )
+
+    if legacy_api_key_env:
+        value = os.getenv(legacy_api_key_env)
+        if value:
+            return value
+        if not _ENV_VAR_NAME_RE.fullmatch(legacy_api_key_env):
+            return legacy_api_key_env
+        raise DataValidationError(
+            f"env var not found for legacy api_key_env: {legacy_api_key_env}. "
+            "Set api_key_env_name or api_key instead."
+        )
+
+    raise DataValidationError("llm api key is missing")
 
 
 def build_system_prompt(base_prompt: str, class_names: list[str], min_conf: float) -> str:

@@ -9,6 +9,7 @@ from typing import Any
 
 from share.kernel.data.yolo_dataset import scan_and_validate_yolo_dataset
 from share.kernel.export.onnx_export import build_export_artifacts
+from share.kernel.model_manifest import build_train_model_manifest, write_model_manifest
 from share.types.errors import DataValidationError
 
 
@@ -123,7 +124,7 @@ def run_yolo_train(cfg: dict[str, Any], run_ctx: dict[str, Any]) -> dict[str, An
         logger=run_ctx["logger"],
     )
 
-    return {
+    artifacts = {
         "backend": "yolo",
         "dry_run": dry_run,
         "train_note": train_note,
@@ -157,3 +158,13 @@ def run_yolo_train(cfg: dict[str, Any], run_ctx: dict[str, Any]) -> dict[str, An
             "messages": export_info.messages,
         },
     }
+    manifest = build_train_model_manifest(cfg=cfg, run_ctx=run_ctx, artifacts=artifacts)
+    manifest_path = write_model_manifest(model_dir=model_dir, manifest=manifest)
+    artifacts["model_manifest"] = {
+        "path": str(manifest_path),
+        "model_id": str(manifest["model_id"]),
+        "backend": str(manifest["backend"]),
+        "deployment_ready": bool(manifest["deployment_ready"]),
+        "supported_modes": list(manifest["supported_modes"]),
+    }
+    return artifacts

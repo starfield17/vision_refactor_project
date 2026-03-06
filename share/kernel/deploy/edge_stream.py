@@ -67,6 +67,8 @@ def run_edge_stream_deploy(cfg: dict[str, Any], run_ctx: dict[str, Any]) -> dict
     remote_failures = 0
     annotated_saved = 0
     class_totals: dict[str, int] = {}
+    last_remote_backend = ""
+    last_remote_model_id = ""
 
     for packet in iter_source_frames(edge_cfg):
         if max_frames > 0 and attempts >= max_frames:
@@ -76,6 +78,8 @@ def run_edge_stream_deploy(cfg: dict[str, Any], run_ctx: dict[str, Any]) -> dict
 
         payload = {
             "schema_version": 1,
+            "request_id": f"{run_id}:{source_id}:{packet.frame_index}",
+            "run_id": run_id,
             "source_id": source_id,
             "frame_index": int(packet.frame_index),
             "frame_name": str(packet.frame_name),
@@ -115,15 +119,26 @@ def run_edge_stream_deploy(cfg: dict[str, Any], run_ctx: dict[str, Any]) -> dict
             continue
 
         counts_by_class = _safe_counts(response.get("counts_by_class"))
+        metadata = response.get("metadata") if isinstance(response.get("metadata"), dict) else {}
         total_detections = int(response.get("total_detections", sum(counts_by_class.values())))
         latency_ms = float(response.get("latency_ms", 0.0))
+        request_id = str(response.get("request_id") or metadata.get("request_id") or payload["request_id"])
+        backend = str(response.get("backend") or metadata.get("backend") or "remote")
+        model_id = str(response.get("model_id") or metadata.get("model_id") or stream_endpoint)
         event = StatsEvent.now(
             source_id=source_id,
             total_detections=total_detections,
             counts_by_class=counts_by_class,
             latency_ms=latency_ms,
+            request_id=request_id,
+            run_id=run_id,
+            model_id=model_id,
+            backend=backend,
+            transport_mode="edge-stream",
         )
         append_stats_snapshot(snapshot_path, event)
+        last_remote_backend = backend
+        last_remote_model_id = model_id
 
         if save_annotated and isinstance(response.get("annotated_jpeg_base64"), str):
             try:
@@ -165,6 +180,8 @@ def run_edge_stream_deploy(cfg: dict[str, Any], run_ctx: dict[str, Any]) -> dict
         "source": str(edge_cfg["source"]),
         "source_id": source_id,
         "stream_endpoint": stream_endpoint,
+        "remote_backend": last_remote_backend,
+        "remote_model_id": last_remote_model_id,
         "stats_snapshot_path": str(snapshot_path),
         "annotated_frames_dir": str(output_dir) if save_annotated else "",
         "stats": {

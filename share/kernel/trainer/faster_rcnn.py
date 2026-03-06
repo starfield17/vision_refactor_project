@@ -20,6 +20,7 @@ from torchvision.models.detection import (
 from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
 from torchvision.models.detection.rpn import AnchorGenerator
 
+from share.kernel.model_manifest import build_train_model_manifest, write_model_manifest
 from share.types.detection import Detection
 from share.types.errors import DataValidationError
 from share.types.label import LabelRecord
@@ -341,7 +342,7 @@ def run_faster_rcnn_train(cfg: dict[str, Any], run_ctx: dict[str, Any]) -> dict[
             "ONNX export is skipped for faster_rcnn backend",
         )
 
-    return {
+    artifacts = {
         "backend": "faster_rcnn",
         "dry_run": dry_run,
         "train_note": "dry-run: skipped optimization steps" if dry_run else "train finished",
@@ -376,3 +377,13 @@ def run_faster_rcnn_train(cfg: dict[str, Any], run_ctx: dict[str, Any]) -> dict[
             "messages": export_messages,
         },
     }
+    manifest = build_train_model_manifest(cfg=cfg, run_ctx=run_ctx, artifacts=artifacts)
+    manifest_path = write_model_manifest(model_dir=model_dir, manifest=manifest)
+    artifacts["model_manifest"] = {
+        "path": str(manifest_path),
+        "model_id": str(manifest["model_id"]),
+        "backend": str(manifest["backend"]),
+        "deployment_ready": bool(manifest["deployment_ready"]),
+        "supported_modes": list(manifest["supported_modes"]),
+    }
+    return artifacts

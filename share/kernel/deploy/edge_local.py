@@ -7,6 +7,7 @@ from typing import Any
 
 from share.kernel.deploy.edge_common import FpsLimiter, append_stats_snapshot, iter_source_frames
 from share.kernel.infer.local_yolo import LocalYoloInferencer
+from share.kernel.model_manifest import resolve_model_identity
 from share.kernel.transport.stats_http import push_stats_event
 from share.types.errors import DataValidationError, TransportError
 from share.types.stats import StatsEvent
@@ -30,6 +31,11 @@ def run_edge_local_deploy(cfg: dict[str, Any], run_ctx: dict[str, Any]) -> dict[
     edge_cfg = cfg["deploy"]["edge"]
     source_id = str(edge_cfg["source_id"])
     local_model = Path(edge_cfg["local_model"])
+    model_meta = resolve_model_identity(
+        local_model,
+        default_backend="yolo",
+        default_model_id=f"edge-local:{local_model.stem}",
+    )
 
     inferencer = LocalYoloInferencer(
         model_path=local_model,
@@ -80,6 +86,11 @@ def run_edge_local_deploy(cfg: dict[str, Any], run_ctx: dict[str, Any]) -> dict[
             total_detections=len(detections),
             counts_by_class=counts_by_class,
             latency_ms=latency_ms,
+            request_id=f"{run_id}:{source_id}:{packet.frame_index}",
+            run_id=run_id,
+            model_id=model_meta["model_id"],
+            backend=model_meta["backend"],
+            transport_mode="edge-local",
         )
         append_stats_snapshot(snapshot_path, event)
 
@@ -126,6 +137,9 @@ def run_edge_local_deploy(cfg: dict[str, Any], run_ctx: dict[str, Any]) -> dict[
         "source": str(edge_cfg["source"]),
         "source_id": source_id,
         "model_path": str(local_model),
+        "model_manifest_path": model_meta["manifest_path"],
+        "model_id": model_meta["model_id"],
+        "backend": model_meta["backend"],
         "stats_snapshot_path": str(snapshot_path),
         "annotated_frames_dir": str(output_dir) if save_annotated else "",
         "stats_endpoint": endpoint,

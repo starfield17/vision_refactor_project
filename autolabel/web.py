@@ -505,13 +505,19 @@ def _render_streamlit_ui(
             value=str(_cfg_get(cfg, ("autolabel", "llm", "model"), "")),
             help="autolabel.llm.model",
         )
-        l3, l4 = st.columns(2)
-        llm_api_key_env = l3.text_input(
-            "API Key Env Name",
-            value=str(_cfg_get(cfg, ("autolabel", "llm", "api_key_env"), "")),
-            help="autolabel.llm.api_key_env",
+        l3, l4, l5 = st.columns(3)
+        llm_api_key = l3.text_input(
+            "API Key",
+            value=str(_cfg_get(cfg, ("autolabel", "llm", "api_key"), "")),
+            help="autolabel.llm.api_key",
+            type="password",
         )
-        llm_max_images = l4.number_input(
+        llm_api_key_env_name = l4.text_input(
+            "API Key Env Name",
+            value=str(_cfg_get(cfg, ("autolabel", "llm", "api_key_env_name"), "")),
+            help="autolabel.llm.api_key_env_name",
+        )
+        llm_max_images = l5.number_input(
             "Max Images (0 = all)",
             min_value=0,
             value=int(_cfg_get(cfg, ("autolabel", "llm", "max_images"), 0)),
@@ -579,7 +585,8 @@ def _render_streamlit_ui(
             f"autolabel.model.onnx_model={model_path.strip()}",
             f"autolabel.llm.base_url={llm_base_url.strip()}",
             f"autolabel.llm.model={llm_model.strip()}",
-            f"autolabel.llm.api_key_env={llm_api_key_env.strip()}",
+            f"autolabel.llm.api_key={llm_api_key.strip()}",
+            f"autolabel.llm.api_key_env_name={llm_api_key_env_name.strip()}",
             f"autolabel.llm.prompt={llm_prompt}",
             f"autolabel.llm.timeout_sec={float(llm_timeout_sec)}",
             f"autolabel.llm.max_retries={int(llm_max_retries)}",

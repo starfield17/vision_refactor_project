@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import base64
 import json
-import os
-import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -50,24 +48,6 @@ def _list_images(images_dir: Path, max_images: int) -> list[Path]:
     if not images:
         raise DataValidationError(f"no images found under: {images_dir}")
     return images
-
-
-def _load_api_key(api_key_env: str) -> str:
-    if not api_key_env:
-        raise DataValidationError("autolabel.llm.api_key_env must not be empty in llm mode")
-    value = os.getenv(api_key_env)
-    if value:
-        return value
-    # Backward-compatible: if user filled the key directly into api_key_env, accept it.
-    # Env var names are typically [A-Za-z_][A-Za-z0-9_]*, so other forms are treated as raw key.
-    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", api_key_env):
-        return api_key_env
-    if api_key_env.startswith("sk-"):
-        return api_key_env
-    raise DataValidationError(
-        f"env var not found for autolabel.llm.api_key_env: {api_key_env}. "
-        "Either export this env var or fill api_key_env with a direct key."
-    )
 
 
 def _build_system_prompt(base_prompt: str, class_names: list[str], min_conf: float) -> str:
@@ -474,7 +454,11 @@ def run_llm_autolabel(cfg: dict[str, Any], run_ctx: dict[str, Any]) -> dict[str,
     visualize = bool(autolabel_cfg["visualize"])
     base_url = str(llm_cfg["base_url"])
     model = str(llm_cfg["model"])
-    api_key = _load_api_key(str(llm_cfg["api_key_env"]))
+    api_key = llm_client.load_api_key(
+        direct_api_key=str(llm_cfg.get("api_key", "")),
+        api_key_env_name=str(llm_cfg.get("api_key_env_name", "")),
+        legacy_api_key_env=str(llm_cfg.get("api_key_env", "")),
+    )
     timeout_sec = float(llm_cfg["timeout_sec"])
     max_retries = int(llm_cfg["max_retries"])
     retry_backoff_sec = float(llm_cfg["retry_backoff_sec"])

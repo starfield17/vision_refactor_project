@@ -86,7 +86,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser.add_argument("--llm-base-url", default=None, help="autolabel.llm.base_url")
     parser.add_argument("--llm-model", default=None, help="autolabel.llm.model")
-    parser.add_argument("--llm-api-key-env", default=None, help="autolabel.llm.api_key_env")
+    parser.add_argument("--llm-api-key", default=None, help="autolabel.llm.api_key")
+    parser.add_argument(
+        "--llm-api-key-env-name",
+        "--llm-api-key-env",
+        dest="llm_api_key_env_name",
+        default=None,
+        help="autolabel.llm.api_key_env_name",
+    )
     parser.add_argument("--llm-prompt", default=None, help="autolabel.llm.prompt")
     parser.add_argument("--llm-timeout-sec", type=float, default=None, help="autolabel.llm.timeout_sec")
     parser.add_argument("--llm-max-retries", type=int, default=None, help="autolabel.llm.max_retries")
@@ -134,7 +141,8 @@ def _collect_granular_overrides(args: argparse.Namespace) -> list[str]:
 
     _append_override(overrides, "autolabel.llm.base_url", args.llm_base_url)
     _append_override(overrides, "autolabel.llm.model", args.llm_model)
-    _append_override(overrides, "autolabel.llm.api_key_env", args.llm_api_key_env)
+    _append_override(overrides, "autolabel.llm.api_key", args.llm_api_key)
+    _append_override(overrides, "autolabel.llm.api_key_env_name", args.llm_api_key_env_name)
     _append_override(overrides, "autolabel.llm.prompt", args.llm_prompt)
     _append_override(overrides, "autolabel.llm.timeout_sec", args.llm_timeout_sec)
     _append_override(overrides, "autolabel.llm.max_retries", args.llm_max_retries)

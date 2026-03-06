@@ -53,6 +53,8 @@ on_conflict = "skip"
 [autolabel.llm]
 base_url = ""
 model = ""
+api_key = ""
+api_key_env_name = "VISION_LLM_API_KEY"
 api_key_env = ""
 prompt = ""
 timeout_sec = 60.0
@@ -88,6 +90,8 @@ stream_api_key = ""
 [deploy.edge.llm]
 base_url = ""
 model = ""
+api_key = ""
+api_key_env_name = "VISION_LLM_API_KEY"
 api_key_env = ""
 prompt = ""
 timeout_sec = 60.0
