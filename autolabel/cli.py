@@ -1,35 +1,23 @@
-"""Autolabel CLI entrypoint (Phase 3)."""
+"""Autolabel CLI entrypoint."""
 
 from __future__ import annotations
 
 import argparse
-import shutil
+import json
 import sys
 from pathlib import Path
 
-from share.config.config_loader import load_config, save_resolved_config
-from share.config.editing import persist_config_overrides
-from share.kernel.autolabel.llm_autolabel import run_llm_autolabel
-from share.kernel.autolabel.model_autolabel import run_model_autolabel
-from share.kernel.kernel import VisionKernel
-from share.kernel.registry import KernelRegistry
-from share.kernel.trainer.faster_rcnn import run_faster_rcnn_train
-from share.kernel.trainer.yolo import run_yolo_train
-from share.kernel.utils.logging import StructuredLogger
+from share.application.autolabel_service import (
+    build_autolabel_overrides_from_payload,
+    run_autolabel,
+    save_autolabel_config,
+)
 from share.config.schema import AUTOLABEL_CONFLICTS, AUTOLABEL_MODES, AUTOLABEL_MODEL_BACKENDS
 from share.types.errors import ConfigError
 
-AUTOLABEL_EDITABLE_PREFIXES = (
-    "workspace",
-    "data.labeled_dir",
-    "data.unlabeled_dir",
-    "train.device",
-    "autolabel",
-)
-
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Phase 3 autolabel CLI")
+    parser = argparse.ArgumentParser(description="Autolabel CLI")
     parser.add_argument("--workdir", default=None, help="Override workspace.root")
     parser.add_argument("--config", required=True, help="Path to config.toml")
     parser.add_argument(
@@ -48,6 +36,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--config-only",
         action="store_true",
         help="Apply config changes and exit without running autolabel (requires --save-config).",
+    )
+    parser.add_argument(
+        "--json-summary",
+        action="store_true",
+        help="Print a final JSON summary line for machine parsing.",
     )
 
     parser.add_argument("--run-name", default=None, help="workspace.run_name")
@@ -105,51 +98,47 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _resolve_log_path(cfg: dict) -> Path:
-    workdir = Path(cfg["workspace"]["root"])
-    log_file = Path(cfg["workspace"]["log_file"])
-    if log_file.is_absolute():
-        return log_file
-    return workdir / log_file
+def _build_payload_from_args(args: argparse.Namespace) -> dict[str, object | None]:
+    return {
+        "run_name": args.run_name,
+        "device": args.device,
+        "labeled_dir": args.labeled_dir,
+        "unlabeled_dir": args.unlabeled_dir,
+        "mode": args.mode,
+        "confidence": args.confidence,
+        "batch_size": args.batch_size,
+        "visualize": args.visualize,
+        "on_conflict": args.on_conflict,
+        "model_backend": args.model_backend,
+        "model_onnx": args.model_onnx,
+        "llm_base_url": args.llm_base_url,
+        "llm_model": args.llm_model,
+        "llm_api_key": args.llm_api_key,
+        "llm_api_key_env_name": args.llm_api_key_env_name,
+        "llm_prompt": args.llm_prompt,
+        "llm_timeout_sec": args.llm_timeout_sec,
+        "llm_max_retries": args.llm_max_retries,
+        "llm_retry_backoff_sec": args.llm_retry_backoff_sec,
+        "llm_qps_limit": args.llm_qps_limit,
+        "llm_max_images": args.llm_max_images,
+    }
 
 
-def _append_override(overrides: list[str], key: str, value: object | None) -> None:
-    if value is None:
-        return
-    if isinstance(value, bool):
-        raw = "true" if value else "false"
-    else:
-        raw = str(value)
-    overrides.append(f"{key}={raw}")
-
-
-def _collect_granular_overrides(args: argparse.Namespace) -> list[str]:
-    overrides: list[str] = []
-    _append_override(overrides, "workspace.run_name", args.run_name)
-    _append_override(overrides, "train.device", args.device)
-    _append_override(overrides, "data.labeled_dir", args.labeled_dir)
-    _append_override(overrides, "data.unlabeled_dir", args.unlabeled_dir)
-
-    _append_override(overrides, "autolabel.mode", args.mode)
-    _append_override(overrides, "autolabel.confidence", args.confidence)
-    _append_override(overrides, "autolabel.batch_size", args.batch_size)
-    _append_override(overrides, "autolabel.visualize", args.visualize)
-    _append_override(overrides, "autolabel.on_conflict", args.on_conflict)
-
-    _append_override(overrides, "autolabel.model.backend", args.model_backend)
-    _append_override(overrides, "autolabel.model.onnx_model", args.model_onnx)
-
-    _append_override(overrides, "autolabel.llm.base_url", args.llm_base_url)
-    _append_override(overrides, "autolabel.llm.model", args.llm_model)
-    _append_override(overrides, "autolabel.llm.api_key", args.llm_api_key)
-    _append_override(overrides, "autolabel.llm.api_key_env_name", args.llm_api_key_env_name)
-    _append_override(overrides, "autolabel.llm.prompt", args.llm_prompt)
-    _append_override(overrides, "autolabel.llm.timeout_sec", args.llm_timeout_sec)
-    _append_override(overrides, "autolabel.llm.max_retries", args.llm_max_retries)
-    _append_override(overrides, "autolabel.llm.retry_backoff_sec", args.llm_retry_backoff_sec)
-    _append_override(overrides, "autolabel.llm.qps_limit", args.llm_qps_limit)
-    _append_override(overrides, "autolabel.llm.max_images", args.llm_max_images)
-    return overrides
+def _print_summary(summary: dict[str, object], json_summary: bool) -> None:
+    if "updated_config" in summary:
+        print(f"updated_config={summary['updated_config']}")
+    if "run_id" in summary:
+        print(f"run_id={summary['run_id']}")
+    if "status" in summary:
+        print(f"status={summary['status']}")
+    if "resolved_config" in summary and summary["resolved_config"]:
+        print(f"resolved_config={summary['resolved_config']}")
+    if "artifacts_path" in summary and summary["artifacts_path"]:
+        print(f"artifacts={summary['artifacts_path']}")
+    if summary.get("error"):
+        print(f"error={summary['error']}", file=sys.stderr)
+    if json_summary:
+        print(json.dumps(summary, ensure_ascii=True))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -159,7 +148,9 @@ def main(argv: list[str] | None = None) -> int:
     config_path = Path(args.config).resolve()
     workdir_override = str(Path(args.workdir).resolve()) if args.workdir else None
     runtime_overrides = list(args.set)
-    runtime_overrides.extend(_collect_granular_overrides(args))
+    runtime_overrides.extend(
+        build_autolabel_overrides_from_payload(_build_payload_from_args(args))
+    )
 
     if args.config_only and not args.save_config:
         print("[USAGE ERROR] --config-only requires --save-config", file=sys.stderr)
@@ -167,63 +158,34 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.save_config:
         try:
-            persist_config_overrides(
-                config_path=config_path,
-                overrides=runtime_overrides,
-                allowed_prefixes=AUTOLABEL_EDITABLE_PREFIXES,
-            )
+            save_autolabel_config(config_path=config_path, overrides=runtime_overrides)
         except ConfigError as exc:
             print(f"[CONFIG ERROR] {exc}", file=sys.stderr)
             return 2
-        print(f"updated_config={config_path}")
+        _print_summary(
+            {
+                "status": "ok",
+                "updated_config": str(config_path),
+                "config_only": bool(args.config_only),
+            },
+            json_summary=args.json_summary,
+        )
         if args.config_only:
             return 0
         runtime_overrides = []
 
     try:
-        cfg = load_config(
+        summary = run_autolabel(
             config_path=config_path,
-            overrides=runtime_overrides,
             workdir_override=workdir_override,
+            overrides=runtime_overrides,
         )
     except ConfigError as exc:
         print(f"[CONFIG ERROR] {exc}", file=sys.stderr)
         return 2
 
-    log_path = _resolve_log_path(cfg)
-    logger = StructuredLogger(log_path=log_path, level=cfg["workspace"]["log_level"])
-    logger.info("autolabel.cli.start", "CLI started", config_path=str(config_path))
-
-    registry = KernelRegistry()
-    registry.register_trainer("yolo", run_yolo_train)
-    registry.register_trainer("faster_rcnn", run_faster_rcnn_train)
-    registry.register_autolabeler("model", run_model_autolabel)
-    registry.register_autolabeler("llm", run_llm_autolabel)
-
-    kernel = VisionKernel(cfg=cfg, logger=logger, registry=registry)
-    result = kernel.run_autolabel()
-
-    resolved_path = result.run_context.run_dir / "config.resolved.toml"
-    save_resolved_config(cfg, resolved_path)
-
-    latest_link = Path(cfg["workspace"]["root"]) / "config.resolved.toml"
-    shutil.copyfile(resolved_path, latest_link)
-
-    logger.info(
-        "autolabel.cli.done",
-        "CLI finished",
-        run_id=result.run_context.run_id,
-        status=result.status,
-        resolved_config=str(resolved_path),
-    )
-
-    print(f"run_id={result.run_context.run_id}")
-    print(f"status={result.status}")
-    print(f"resolved_config={resolved_path}")
-    print(f"artifacts={result.run_context.run_dir / 'artifacts.json'}")
-
-    if result.status != "ok":
-        print(f"error={result.error}", file=sys.stderr)
+    _print_summary(summary, json_summary=args.json_summary)
+    if summary["status"] != "ok":
         return 1
     return 0
 

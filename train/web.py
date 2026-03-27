@@ -3,27 +3,24 @@
 from __future__ import annotations
 
 import argparse
-import json
-import shutil
 import subprocess
 import sys
 import traceback
 from pathlib import Path
 from typing import Any
 
-from share.config.config_loader import load_config, save_resolved_config
-from share.config.editing import load_merged_user_config, persist_config_overrides
+from share.application.common import format_elapsed, read_tail
+from share.application.train_service import (
+    build_train_overrides_from_payload,
+    run_train,
+    save_train_config,
+)
+from share.config.editing import load_merged_user_config
 from share.config.schema import FASTER_RCNN_VARIANTS, QUANTIZE_MODES, TRAIN_BACKENDS
-from share.kernel.kernel import VisionKernel
-from share.kernel.registry import KernelRegistry
-from share.kernel.trainer.faster_rcnn import run_faster_rcnn_train
-from share.kernel.trainer.yolo import run_yolo_train
-from share.kernel.utils.logging import StructuredLogger
 from share.types.errors import ConfigError
 
 WEB_HOST = "0.0.0.0"
 WEB_PORT = 7794
-TRAIN_WEB_EDITABLE_PREFIXES = ("workspace", "data.yolo_dataset_dir", "train", "export")
 
 # ---------------------------------------------------------------------------
 # Custom CSS — Modern Light Theme (consistent with statistics dashboard)
@@ -196,12 +193,6 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _resolve_log_path(cfg: dict[str, Any]) -> Path:
-    workdir = Path(cfg["workspace"]["root"])
-    log_file = Path(cfg["workspace"]["log_file"])
-    return log_file if log_file.is_absolute() else workdir / log_file
-
-
 def _parse_override_text(raw: str) -> list[str]:
     items: list[str] = []
     for line in raw.splitlines():
@@ -212,13 +203,6 @@ def _parse_override_text(raw: str) -> list[str]:
             continue  # skip malformed lines
         items.append(text)
     return items
-
-
-def _read_tail(path: Path, max_lines: int = 120) -> str:
-    if not path.exists():
-        return ""
-    lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-    return "\n".join(lines[-max_lines:])
 
 
 def _ui_device_to_runtime(choice: str) -> str:
@@ -233,17 +217,6 @@ def _validate_config_path(path_str: str) -> Path | None:
     if not p.exists():
         return None
     return p
-
-
-def _format_elapsed(ms: float) -> str:
-    """Human-friendly elapsed time."""
-    if ms < 1000:
-        return f"{ms:.0f} ms"
-    secs = ms / 1000
-    if secs < 60:
-        return f"{secs:.1f} s"
-    mins = secs / 60
-    return f"{mins:.1f} min"
 
 
 def _choice_index(options: list[str], value: str, default: int = 0) -> int:
@@ -271,45 +244,11 @@ def _run_train_once(
     workdir_override: str | None,
     overrides: list[str],
 ) -> dict[str, Any]:
-    cfg = load_config(
+    return run_train(
         config_path=config_path,
-        overrides=overrides,
         workdir_override=workdir_override,
+        overrides=overrides,
     )
-
-    logger = StructuredLogger(
-        log_path=_resolve_log_path(cfg),
-        level=cfg["workspace"]["log_level"],
-    )
-    logger.info("train.web.start", "Train web run started", config_path=str(config_path))
-
-    registry = KernelRegistry()
-    registry.register_trainer("yolo", run_yolo_train)
-    registry.register_trainer("faster_rcnn", run_faster_rcnn_train)
-
-    kernel = VisionKernel(cfg=cfg, logger=logger, registry=registry)
-    result = kernel.run_train()
-
-    resolved_path = result.run_context.run_dir / "config.resolved.toml"
-    save_resolved_config(cfg, resolved_path)
-    shutil.copyfile(resolved_path, Path(cfg["workspace"]["root"]) / "config.resolved.toml")
-
-    artifacts_path = result.run_context.run_dir / "artifacts.json"
-    artifacts_payload: dict[str, Any] = {}
-    if artifacts_path.exists():
-        artifacts_payload = json.loads(artifacts_path.read_text(encoding="utf-8"))
-
-    return {
-        "status": result.status,
-        "error": result.error,
-        "run_id": result.run_context.run_id,
-        "elapsed_ms": result.elapsed_ms,
-        "run_dir": str(result.run_context.run_dir),
-        "resolved_config": str(resolved_path),
-        "artifacts_path": str(artifacts_path),
-        "artifacts": artifacts_payload,
-        "log_path": str(_resolve_log_path(cfg)),
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -582,35 +521,31 @@ def _render_streamlit_ui(
         elif dry_run:
             info_col.info("ℹ️ Dry-run mode — config will be validated only.")
 
-        cli_overrides = [
-            f"workspace.run_name={run_name.strip()}",
-            f"data.yolo_dataset_dir={dataset_dir.strip()}",
-            f"train.backend={backend}",
-            f"train.device={runtime_device}",
-            f"train.dry_run={str(bool(dry_run)).lower()}",
-            f"train.epochs={int(epochs)}",
-            f"train.batch_size={int(batch_size)}",
-            f"train.img_size={int(img_size)}",
-            f"train.seed={int(seed)}",
-            f"export.onnx={str(bool(export_onnx)).lower()}",
-            f"export.opset={int(export_opset)}",
-            f"export.quantize={str(bool(export_quantize)).lower()}",
-            f"export.quantize_mode={export_quantize_mode}",
-            f"export.calib_samples={int(export_calib_samples)}",
-        ]
-        if backend == "yolo":
-            cli_overrides.append(f"train.yolo.weights={yolo_weights.strip()}")
-        else:
-            cli_overrides.extend(
-                [
-                    f"train.faster_rcnn.variant={frcnn_variant}",
-                    f"train.faster_rcnn.lr={frcnn_lr}",
-                    f"train.faster_rcnn.momentum={frcnn_momentum}",
-                    f"train.faster_rcnn.weight_decay={frcnn_weight_decay}",
-                    f"train.faster_rcnn.num_workers={int(frcnn_num_workers)}",
-                    f"train.faster_rcnn.max_samples={int(frcnn_max_samples)}",
-                ]
-            )
+        cli_overrides = build_train_overrides_from_payload(
+            {
+                "run_name": run_name.strip(),
+                "dataset_dir": dataset_dir.strip(),
+                "backend": backend,
+                "device": runtime_device,
+                "dry_run": bool(dry_run),
+                "epochs": int(epochs),
+                "batch_size": int(batch_size),
+                "img_size": int(img_size),
+                "seed": int(seed),
+                "yolo_weights": yolo_weights.strip(),
+                "frcnn_variant": frcnn_variant,
+                "frcnn_lr": frcnn_lr,
+                "frcnn_momentum": frcnn_momentum,
+                "frcnn_weight_decay": frcnn_weight_decay,
+                "frcnn_num_workers": int(frcnn_num_workers),
+                "frcnn_max_samples": int(frcnn_max_samples),
+                "export_onnx": bool(export_onnx),
+                "export_opset": int(export_opset),
+                "export_quantize": bool(export_quantize),
+                "export_quantize_mode": export_quantize_mode,
+                "export_calib_samples": int(export_calib_samples),
+            }
+        )
         cli_overrides.extend(_parse_override_text(extra_overrides))
 
         if save_clicked:
@@ -620,11 +555,7 @@ def _render_streamlit_ui(
                 st.error(f"Cannot save: {config_load_error}")
             else:
                 try:
-                    persist_config_overrides(
-                        config_path=config_path_resolved,
-                        overrides=cli_overrides,
-                        allowed_prefixes=TRAIN_WEB_EDITABLE_PREFIXES,
-                    )
+                    save_train_config(config_path=config_path_resolved, overrides=cli_overrides)
                     st.session_state["train_web_flash"] = (
                         f"Saved training sections to {config_path_resolved}"
                     )
@@ -677,7 +608,7 @@ def _render_streamlit_ui(
             # Metrics row
             r1, r2, r3 = st.columns(3)
             r1.metric("Run ID", str(result["run_id"]))
-            r2.metric("Elapsed", _format_elapsed(float(result["elapsed_ms"])))
+            r2.metric("Elapsed", format_elapsed(float(result["elapsed_ms"])))
             r3.metric("Status", str(result["status"]).upper())
 
             if not is_ok and result.get("error"):
@@ -711,7 +642,7 @@ def _render_streamlit_ui(
             max_lines = st.select_slider(
                 "Tail lines", options=[50, 120, 300, 500], value=120,
             )
-            log_text = _read_tail(log_path, max_lines=max_lines)
+            log_text = read_tail(log_path, max_lines=max_lines)
             st.code(log_text or "(empty log)", language="log")
 
     return 0

@@ -60,11 +60,13 @@ vision-refactor-project/
 │   ├── __init__.py
 │   ├── cli.py                 ← python -m train.cli
 │   └── web.py                 ← python -m train.web (Streamlit, 7794)
+│   └── launch_gui.py          ← python -m train.launch_gui
 │
 ├── autolabel/                 ← CLI entry-point: automatic labeling
 │   ├── __init__.py
 │   ├── cli.py                 ← python -m autolabel.cli
 │   └── web.py                 ← python -m autolabel.web (Streamlit, 7795)
+│   └── launch_gui.py          ← python -m autolabel.launch_gui
 │
 ├── deploy/                    ← CLI entry-points: deployment services
 │   ├── edge/
@@ -79,6 +81,8 @@ vision-refactor-project/
 │   ├── config/
 │   │   ├── config_loader.py   ← load, merge, validate, resolve paths, serialize TOML
 │   │   └── schema.py          ← DEFAULT_CONFIG + validate_config()
+│   ├── application/           ← shared frontend services for train/autolabel
+│   ├── desktop/               ← PySide6 desktop GUI
 │   ├── kernel/                ← Core pipeline implementations
 │   │   ├── kernel.py          ← VisionKernel: orchestrates run contexts & pipelines
 │   │   ├── registry.py        ← KernelRegistry: plugin registry for trainers/deployers
@@ -135,7 +139,8 @@ vision-refactor-project/
   - `onnxconverter-common >= 1.14.0` — ONNX conversion helpers
   - `fastapi >= 0.115.0` — statistics REST API
   - `uvicorn >= 0.30.0` — ASGI server for FastAPI
-  - `streamlit >= 1.40.0` — statistics UI
+- `streamlit >= 1.40.0` — statistics UI
+- `PySide6 >= 6.8.0` — local desktop GUI for Train/AutoLabel
 - Optional (auto-detected at runtime):
   - `plotly` — enhanced charts in statistics UI
   - `torchvision` — required for Faster-RCNN training/inference
@@ -217,6 +222,19 @@ Both web pages provide a `Device` selector (`cpu` or `gpu`), where `gpu` maps to
 
 Train/AutoLabel web UIs now also include **Save Config** buttons so you can persist
 their section settings directly into `work-dir/config.toml` before running.
+
+### Optional — Local Desktop GUI for Train/AutoLabel
+
+```bash
+# Open the shared desktop app with the Train page selected
+python -m train.launch_gui
+
+# Open the same desktop app with the AutoLabel page selected
+python -m autolabel.launch_gui
+```
+
+The desktop GUI is a local PySide6 application. It reuses the same config system,
+work-dir layout, CLI modules, and application services as the existing CLI/Web flows.
 
 ### Step 4 — Start the statistics service
 

@@ -3,33 +3,24 @@
 from __future__ import annotations
 
 import argparse
-import json
-import shutil
 import subprocess
 import sys
 import traceback
 from pathlib import Path
 from typing import Any
 
-from share.config.config_loader import load_config, save_resolved_config
-from share.config.editing import load_merged_user_config, persist_config_overrides
+from share.application.autolabel_service import (
+    build_autolabel_overrides_from_payload,
+    run_autolabel,
+    save_autolabel_config,
+)
+from share.application.common import format_elapsed, read_tail
+from share.config.editing import load_merged_user_config
 from share.config.schema import AUTOLABEL_CONFLICTS, AUTOLABEL_MODES, AUTOLABEL_MODEL_BACKENDS
-from share.kernel.autolabel.llm_autolabel import run_llm_autolabel
-from share.kernel.autolabel.model_autolabel import run_model_autolabel
-from share.kernel.kernel import VisionKernel
-from share.kernel.registry import KernelRegistry
-from share.kernel.utils.logging import StructuredLogger
 from share.types.errors import ConfigError
 
 WEB_HOST = "0.0.0.0"
 WEB_PORT = 7795
-AUTOLABEL_WEB_EDITABLE_PREFIXES = (
-    "workspace",
-    "data.labeled_dir",
-    "data.unlabeled_dir",
-    "train.device",
-    "autolabel",
-)
 
 # ---------------------------------------------------------------------------
 # Custom CSS — Modern Light Theme (consistent with statistics dashboard)
@@ -199,12 +190,6 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _resolve_log_path(cfg: dict[str, Any]) -> Path:
-    workdir = Path(cfg["workspace"]["root"])
-    log_file = Path(cfg["workspace"]["log_file"])
-    return log_file if log_file.is_absolute() else workdir / log_file
-
-
 def _parse_override_text(raw: str) -> list[str]:
     items: list[str] = []
     for line in raw.splitlines():
@@ -215,13 +200,6 @@ def _parse_override_text(raw: str) -> list[str]:
             continue  # skip malformed lines silently
         items.append(text)
     return items
-
-
-def _read_tail(path: Path, max_lines: int = 120) -> str:
-    if not path.exists():
-        return ""
-    lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-    return "\n".join(lines[-max_lines:])
 
 
 def _ui_device_to_runtime(choice: str) -> str:
@@ -236,17 +214,6 @@ def _validate_config_path(path_str: str) -> Path | None:
     if not p.exists():
         return None
     return p
-
-
-def _format_elapsed(ms: float) -> str:
-    """Human-friendly elapsed time."""
-    if ms < 1000:
-        return f"{ms:.0f} ms"
-    secs = ms / 1000
-    if secs < 60:
-        return f"{secs:.1f} s"
-    mins = secs / 60
-    return f"{mins:.1f} min"
 
 
 def _choice_index(options: list[str], value: str, default: int = 0) -> int:
@@ -274,45 +241,11 @@ def _run_autolabel_once(
     workdir_override: str | None,
     overrides: list[str],
 ) -> dict[str, Any]:
-    cfg = load_config(
+    return run_autolabel(
         config_path=config_path,
-        overrides=overrides,
         workdir_override=workdir_override,
+        overrides=overrides,
     )
-
-    logger = StructuredLogger(
-        log_path=_resolve_log_path(cfg),
-        level=cfg["workspace"]["log_level"],
-    )
-    logger.info("autolabel.web.start", "Autolabel web run started", config_path=str(config_path))
-
-    registry = KernelRegistry()
-    registry.register_autolabeler("model", run_model_autolabel)
-    registry.register_autolabeler("llm", run_llm_autolabel)
-
-    kernel = VisionKernel(cfg=cfg, logger=logger, registry=registry)
-    result = kernel.run_autolabel()
-
-    resolved_path = result.run_context.run_dir / "config.resolved.toml"
-    save_resolved_config(cfg, resolved_path)
-    shutil.copyfile(resolved_path, Path(cfg["workspace"]["root"]) / "config.resolved.toml")
-
-    artifacts_path = result.run_context.run_dir / "artifacts.json"
-    artifacts_payload: dict[str, Any] = {}
-    if artifacts_path.exists():
-        artifacts_payload = json.loads(artifacts_path.read_text(encoding="utf-8"))
-
-    return {
-        "status": result.status,
-        "error": result.error,
-        "run_id": result.run_context.run_id,
-        "elapsed_ms": result.elapsed_ms,
-        "run_dir": str(result.run_context.run_dir),
-        "resolved_config": str(resolved_path),
-        "artifacts_path": str(artifacts_path),
-        "artifacts": artifacts_payload,
-        "log_path": str(_resolve_log_path(cfg)),
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -571,29 +504,31 @@ def _render_streamlit_ui(
         elif config_load_error:
             info_col.error(f"❌ Cannot read config TOML: `{config_load_error}`")
 
-        cli_overrides = [
-            f"workspace.run_name={run_name.strip()}",
-            f"data.labeled_dir={labeled_dir.strip()}",
-            f"data.unlabeled_dir={unlabeled_dir.strip()}",
-            f"autolabel.mode={mode}",
-            f"train.device={runtime_device}",
-            f"autolabel.confidence={float(confidence)}",
-            f"autolabel.visualize={str(bool(visualize)).lower()}",
-            f"autolabel.batch_size={int(batch_size)}",
-            f"autolabel.on_conflict={on_conflict}",
-            f"autolabel.model.backend={model_backend}",
-            f"autolabel.model.onnx_model={model_path.strip()}",
-            f"autolabel.llm.base_url={llm_base_url.strip()}",
-            f"autolabel.llm.model={llm_model.strip()}",
-            f"autolabel.llm.api_key={llm_api_key.strip()}",
-            f"autolabel.llm.api_key_env_name={llm_api_key_env_name.strip()}",
-            f"autolabel.llm.prompt={llm_prompt}",
-            f"autolabel.llm.timeout_sec={float(llm_timeout_sec)}",
-            f"autolabel.llm.max_retries={int(llm_max_retries)}",
-            f"autolabel.llm.retry_backoff_sec={float(llm_retry_backoff_sec)}",
-            f"autolabel.llm.qps_limit={float(llm_qps_limit)}",
-            f"autolabel.llm.max_images={int(llm_max_images)}",
-        ]
+        cli_overrides = build_autolabel_overrides_from_payload(
+            {
+                "run_name": run_name.strip(),
+                "labeled_dir": labeled_dir.strip(),
+                "unlabeled_dir": unlabeled_dir.strip(),
+                "mode": mode,
+                "device": runtime_device,
+                "confidence": float(confidence),
+                "visualize": bool(visualize),
+                "batch_size": int(batch_size),
+                "on_conflict": on_conflict,
+                "model_backend": model_backend,
+                "model_onnx": model_path.strip(),
+                "llm_base_url": llm_base_url.strip(),
+                "llm_model": llm_model.strip(),
+                "llm_api_key": llm_api_key.strip(),
+                "llm_api_key_env_name": llm_api_key_env_name.strip(),
+                "llm_prompt": llm_prompt,
+                "llm_timeout_sec": float(llm_timeout_sec),
+                "llm_max_retries": int(llm_max_retries),
+                "llm_retry_backoff_sec": float(llm_retry_backoff_sec),
+                "llm_qps_limit": float(llm_qps_limit),
+                "llm_max_images": int(llm_max_images),
+            }
+        )
         cli_overrides.extend(_parse_override_text(extra_overrides))
 
         if save_clicked:
@@ -603,11 +538,7 @@ def _render_streamlit_ui(
                 st.error(f"Cannot save: {config_load_error}")
             else:
                 try:
-                    persist_config_overrides(
-                        config_path=config_path_resolved,
-                        overrides=cli_overrides,
-                        allowed_prefixes=AUTOLABEL_WEB_EDITABLE_PREFIXES,
-                    )
+                    save_autolabel_config(config_path=config_path_resolved, overrides=cli_overrides)
                     st.session_state["autolabel_web_flash"] = (
                         f"Saved autolabel sections to {config_path_resolved}"
                     )
@@ -660,7 +591,7 @@ def _render_streamlit_ui(
             # Metrics row
             r1, r2, r3 = st.columns(3)
             r1.metric("Run ID", str(result["run_id"]))
-            r2.metric("Elapsed", _format_elapsed(float(result["elapsed_ms"])))
+            r2.metric("Elapsed", format_elapsed(float(result["elapsed_ms"])))
             r3.metric("Status", str(result["status"]).upper())
 
             if not is_ok and result.get("error"):
@@ -694,7 +625,7 @@ def _render_streamlit_ui(
             max_lines = st.select_slider(
                 "Tail lines", options=[50, 120, 300, 500], value=120,
             )
-            log_text = _read_tail(log_path, max_lines=max_lines)
+            log_text = read_tail(log_path, max_lines=max_lines)
             st.code(log_text or "(empty log)", language="log")
 
     return 0
