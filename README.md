@@ -154,10 +154,20 @@ vision-refactor-project/
 git clone https://github.com/starfield17/vision_refactor_project.git
 cd vision-refactor-project
 
-# 2. Prepare your local configuration
+# 2. Install runtime dependencies
+pip install -r train/requirements.txt      # train.cli / train.web / train.launch_gui
+pip install -r autolabel/requirements.txt  # autolabel.cli / autolabel.web / autolabel.launch_gui
+pip install -r deploy/requirements.txt     # deploy.edge / deploy.remote / deploy.statistics
+
+# 3. Prepare your local configuration
 cp work-dir/config.example.toml work-dir/config.toml
 # Then edit work-dir/config.toml to match your environment
 ```
+
+The root `pyproject.toml` remains the shared package metadata. These module-local
+`requirements.txt` files are convenience runtime dependency sets for running the
+repo directly from source, and they keep the shared version floors from
+`pyproject.toml` where those packages are already declared.
 
 ---
 
