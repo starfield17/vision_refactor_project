@@ -18,7 +18,7 @@ def _derive_supported_modes(backend: str, final_infer_model_path: str, export_ok
     supported = ["train"]
     path = Path(final_infer_model_path) if final_infer_model_path else None
 
-    if backend == "yolo" and export_ok and path is not None and path.suffix.lower() == ".onnx":
+    if backend in {"yolo", "faster_rcnn"} and export_ok and path is not None and path.suffix.lower() == ".onnx":
         supported.extend(["autolabel-model", "deploy-edge-local", "deploy-edge-stream", "deploy-remote"])
     return supported
 

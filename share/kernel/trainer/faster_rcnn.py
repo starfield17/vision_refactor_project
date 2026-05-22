@@ -20,6 +20,7 @@ from torchvision.models.detection import (
 from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
 from torchvision.models.detection.rpn import AnchorGenerator
 
+from share.kernel.export.faster_rcnn_onnx_export import export_faster_rcnn_to_onnx
 from share.kernel.model_manifest import build_train_model_manifest, write_model_manifest
 from share.types.detection import Detection
 from share.types.errors import DataValidationError
@@ -332,15 +333,24 @@ def run_faster_rcnn_train(cfg: dict[str, Any], run_ctx: dict[str, Any]) -> dict[
     )
 
     detections_total = sum(len(sample.detections) for sample in samples)
-    export_messages = [
-        "faster_rcnn export path currently uses model.pt for downstream integration",
-        "onnx/quantization for faster_rcnn is not implemented in this phase",
-    ]
+    export_messages: list[str] = []
+    onnx_path: str | None = None
+    export_ok = False
     if bool(cfg["export"]["onnx"]):
-        logger.warn(
-            "train.faster_rcnn.export.onnx.skipped",
-            "ONNX export is skipped for faster_rcnn backend",
+        export_ok, onnx_path, export_messages = export_faster_rcnn_to_onnx(
+            model=model,
+            output_onnx_path=model_dir / "model.onnx",
+            img_size=int(cfg["train"]["img_size"]),
+            opset=int(cfg["export"]["opset"]),
+            logger=logger,
         )
+    else:
+        export_messages.append("onnx export disabled by config")
+
+    if bool(cfg["export"]["quantize"]):
+        export_messages.append("faster_rcnn ONNX quantization is skipped; using FP32 ONNX")
+
+    final_infer_model_path = onnx_path if export_ok and onnx_path else str(model_path)
 
     artifacts = {
         "backend": "faster_rcnn",
@@ -367,13 +377,13 @@ def run_faster_rcnn_train(cfg: dict[str, Any], run_ctx: dict[str, Any]) -> dict[
             "train_loss_history": train_loss_history,
         },
         "export": {
-            "onnx_path": None,
+            "onnx_path": onnx_path,
             "quantized_onnx_path": None,
             "fp16_onnx_path": None,
-            "final_infer_model_path": str(model_path),
-            "export_ok": False,
+            "final_infer_model_path": final_infer_model_path,
+            "export_ok": export_ok,
             "quantize_ok": False,
-            "quantize_strategy": "not-implemented",
+            "quantize_strategy": "not-run",
             "messages": export_messages,
         },
     }

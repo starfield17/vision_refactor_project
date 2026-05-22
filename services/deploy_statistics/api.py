@@ -23,7 +23,7 @@ from share.application.job_store import JobStore
 from share.config.config_loader import load_config
 from share.config.editing import load_merged_user_config, persist_config_overrides
 from share.kernel.deploy.remote_server import create_remote_app
-from share.kernel.infer.local_yolo import LocalYoloInferencer
+from share.kernel.infer.factory import create_frame_inferencer
 from share.kernel.statistics.analytics import build_dashboard
 from share.kernel.statistics.sqlite_store import get_recent_events, init_stats_db, insert_stats_event
 from share.kernel.utils.logging import StructuredLogger
@@ -67,19 +67,19 @@ class RemoteRuntime:
             kernel._ensure_workdir_layout()
             run_ctx = kernel._make_run_context(mode="deploy-remote")
             remote_cfg = self.cfg["deploy"]["remote"]
-            inferencer = LocalYoloInferencer(
+            resolved_inferencer = create_frame_inferencer(
                 model_path=Path(remote_cfg["model"]),
-                class_names=list(self.cfg["class_map"]["names"]),
+                cfg=self.cfg,
                 confidence=float(remote_cfg["confidence"]),
-                img_size=int(self.cfg["train"]["img_size"]),
-                device=str(self.cfg["train"]["device"]),
+                default_backend="yolo",
+                default_model_id=f"remote:{Path(remote_cfg['model']).stem}",
             )
             self._app = create_remote_app(
                 cfg=self.cfg,
                 run_id=run_ctx.run_id,
                 run_dir=run_ctx.run_dir,
                 logger=self.logger,
-                inferencer=inferencer,
+                inferencer=resolved_inferencer.inferencer,
             )
             self._run_id = run_ctx.run_id
             self._run_dir = run_ctx.run_dir

@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from share.kernel.deploy.edge_common import append_stats_snapshot
-from share.kernel.infer.local_yolo import LocalYoloInferencer
+from share.kernel.infer.factory import create_frame_inferencer
 from share.kernel.model_manifest import resolve_model_identity
 from share.kernel.transport.frame_http import decode_jpeg_base64, encode_jpeg_base64
 from share.kernel.transport.stats_http import push_stats_event
@@ -88,7 +88,7 @@ def create_remote_app(
     run_id: str,
     run_dir: Path,
     logger: Any,
-    inferencer: LocalYoloInferencer,
+    inferencer: Any,
 ):
     try:
         from fastapi import FastAPI, Header
@@ -254,13 +254,14 @@ def run_remote_deploy(cfg: dict[str, Any], run_ctx: dict[str, Any]) -> dict[str,
         default_model_id=f"remote:{model_path.stem}",
     )
 
-    inferencer = LocalYoloInferencer(
+    resolved_inferencer = create_frame_inferencer(
         model_path=model_path,
-        class_names=list(cfg["class_map"]["names"]),
+        cfg=cfg,
         confidence=float(remote_cfg["confidence"]),
-        img_size=int(cfg["train"]["img_size"]),
-        device=str(cfg["train"]["device"]),
+        default_backend="yolo",
+        default_model_id=f"remote:{model_path.stem}",
     )
+    inferencer = resolved_inferencer.inferencer
 
     app = create_remote_app(
         cfg=cfg,

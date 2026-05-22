@@ -9,6 +9,7 @@ import cv2
 import numpy as np
 import torch
 import torchvision
+import time
 from torchvision.models.detection import FasterRCNN
 from torchvision.models.detection import (
     fasterrcnn_mobilenet_v3_large_fpn,
@@ -20,6 +21,7 @@ from torchvision.models.detection.rpn import AnchorGenerator
 
 from share.types.detection import Detection
 from share.types.errors import DataValidationError
+from share.kernel.infer.faster_rcnn_onnx import AnnotatedFrameResult
 
 
 def _build_model(variant: str, num_classes: int) -> FasterRCNN:
@@ -107,11 +109,7 @@ class LocalFasterRCNNInferencer:
         self.model.to(self.device)
         self.model.eval()
 
-    def infer_image(self, image_path: Path) -> tuple[list[Detection], Any, Any]:
-        original = cv2.imread(str(image_path))
-        if original is None:
-            raise DataValidationError(f"failed to read image: {image_path}")
-
+    def _infer_array(self, original: Any) -> tuple[list[Detection], Any]:
         rgb = cv2.cvtColor(original, cv2.COLOR_BGR2RGB)
         tensor = torch.from_numpy(np.ascontiguousarray(rgb)).permute(2, 0, 1).float() / 255.0
 
@@ -164,4 +162,21 @@ class LocalFasterRCNNInferencer:
                 cv2.LINE_AA,
             )
 
+        return detections, annotated
+
+    def infer_frame(self, frame_bgr: Any) -> tuple[list[Detection], AnnotatedFrameResult, float]:
+        if frame_bgr is None or not hasattr(frame_bgr, "shape"):
+            raise DataValidationError("invalid frame for faster_rcnn infer")
+
+        start = time.perf_counter()
+        detections, annotated = self._infer_array(frame_bgr)
+        latency_ms = round((time.perf_counter() - start) * 1000.0, 3)
+        return detections, AnnotatedFrameResult(annotated), latency_ms
+
+    def infer_image(self, image_path: Path) -> tuple[list[Detection], Any, Any]:
+        original = cv2.imread(str(image_path))
+        if original is None:
+            raise DataValidationError(f"failed to read image: {image_path}")
+
+        detections, annotated = self._infer_array(original)
         return detections, original, annotated

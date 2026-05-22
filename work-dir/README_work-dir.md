@@ -6,7 +6,7 @@ It holds all data that is generated at runtime: configs, datasets, trained model
 annotated outputs, statistics databases, and temporary files.
 
 **None of the runtime artifacts in this directory are committed to Git.**  
-Only the template files (`config.example.toml`, `README.md`, `.gitkeep`) are tracked.
+Only the template files (`config.example.toml`, `README_work-dir.md`, `.gitkeep`) are tracked.
 
 ---
 
@@ -51,13 +51,17 @@ work-dir/
 │
 ├── datasets/               ← Input data
 │   ├── yolo/               ← YOLO-format dataset (images/ + labels/ + dataset.yaml)
+│   ├── voc2007_yolo/       ← VOC helper output for YOLO training
+│   ├── voc2007_labeled/    ← VOC helper output as LabelRecord JSON
+│   ├── voc2007_unlabeled/  ← VOC helper output for AutoLabel testing
+│   ├── voc2007_deploy_images/ ← VOC helper output for deploy image-folder tests
 │   ├── labeled/            ← Labeled images output by autolabel
 │   └── unlabeled/          ← Raw images to be processed by autolabel
 │
 ├── models/                 ← Trained model weights
 │   └── <run-id>/
 │       ├── model.onnx         ← Full-precision ONNX model
-│       └── model-int8.onnx    ← INT-8 quantized ONNX model (deploy-ready)
+│       └── model-int8.onnx    ← INT-8 quantized ONNX model when supported
 │
 ├── runs/                   ← Per-run metadata
 │   └── <run-id>/
@@ -154,10 +158,12 @@ by run ID.
 models/
 └── exp001-20250101-120000/
     ├── model.onnx           ← Full-precision ONNX (opset 17 by default)
-    └── model-int8.onnx      ← INT-8 dynamically quantized ONNX (for edge deploy)
+    └── model-int8.onnx      ← INT-8 dynamically quantized ONNX when supported
 ```
 
-The quantized model is suitable for deployment via `deploy.edge` and `autolabel.model`.
+YOLO runs can produce both `model.onnx` and `model-int8.onnx`. Faster-RCNN runs currently
+produce `model.onnx` only; quantization is skipped and deploy/model AutoLabel use the FP32
+ONNX model.
 
 ### `runs/`
 
@@ -271,7 +277,14 @@ work-dir/runs/
 work-dir/outputs/
 work-dir/stats/
 work-dir/tmp/
+work-dir/secrets/
 work-dir/*.pid
+*.pt
+*.onnx
+*.zip
+*.tar
+*.tar.gz
+*.tgz
 codex.md
 ```
 
@@ -282,4 +295,3 @@ The following are **kept** in Git:
 !work-dir/README_work-dir.md
 !work-dir/.gitkeep
 ```
-

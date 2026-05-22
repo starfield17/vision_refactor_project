@@ -38,7 +38,7 @@ pipelines directly.
 | Phase | Module | Description |
 |-------|--------|-------------|
 | 1 | `train` | Train a detection model (YOLO or Faster-RCNN), export to ONNX |
-| 2 | _(export)_ | Embedded in training: INT-8 dynamic quantization via ONNX Runtime |
+| 2 | _(export)_ | Embedded in training: ONNX export for YOLO and Faster-RCNN; YOLO supports optional INT-8 dynamic quantization |
 | 3 | `autolabel` | Auto-annotate an unlabeled image folder using a local model or an LLM API |
 | 4 | `deploy/statistics` | Ingest/query per-frame telemetry through the deploy-statistics backend and React dashboard |
 | 5 | `deploy/edge` | Run inference on camera / video / image folder, push stats to the statistics service |
@@ -108,7 +108,7 @@ vision-refactor-project/
 │       └── errors.py          ← Project-wide exception hierarchy
 │
 ├── scripts/                   ← Shell utility & operations scripts
-│   ├── README.md
+│   ├── README_scripts.md
 │   ├── start_stats.sh         ← Start deploy/statistics backend + React UI
 │   ├── stop_stats.sh
 │   ├── status_stats.sh
@@ -121,7 +121,7 @@ vision-refactor-project/
 │   └── change_pip_conda_source.sh
 │
 └── work-dir/                  ← Runtime data directory (NOT committed to Git)
-    ├── README.md
+    ├── README_work-dir.md
     ├── config.example.toml    ← Template — copy to config.toml before running
     ├── datasets/
     ├── models/
@@ -148,6 +148,7 @@ vision-refactor-project/
 - `PySide6 >= 6.8.0` — local desktop GUI for Train/AutoLabel
 - Optional (auto-detected at runtime):
   - `torchvision` — required for Faster-RCNN training/inference
+  - `onnxruntime-gpu` — enables CUDAExecutionProvider for ONNX inference when the matching CUDA runtime libraries are installed
 
 ---
 
@@ -350,7 +351,10 @@ python -m train.cli \
 
 **Entry point:** `python -m train.cli`
 
-Trains an object-detection model and exports it to ONNX (with optional INT-8 quantization).
+Trains an object-detection model and exports it to ONNX. YOLO can also produce an optional
+INT-8 dynamic-quantized ONNX model. Faster-RCNN exports a full-precision ONNX model through
+`share/kernel/export/faster_rcnn_onnx_export.py`; quantization is currently skipped for that
+backend.
 
 **Backends:**
 
@@ -418,7 +422,7 @@ on_conflict = "skip"    # "skip" | "overwrite" | "merge"
 
 [autolabel.model]
 onnx_model = "./work-dir/models/exp001/model-int8.onnx"
-backend    = "yolo"
+backend    = "yolo"   # "yolo" | "faster_rcnn"
 
 [autolabel.llm]
 base_url      = "https://api.openai.com/v1"
@@ -437,6 +441,9 @@ max_images    = 0                     # 0 = no limit
 - `overwrite` — replace existing labels
 - `merge` — merge new detections into existing label file
 
+LLM credentials should be provided through `autolabel.llm.api_key_env_name` or a local
+environment file such as `work-dir/secrets/llm.env`. Keep API keys out of tracked config.
+
 ---
 
 ### `deploy/edge`
@@ -450,7 +457,7 @@ telemetry to the statistics API.
 
 | Mode | Description |
 |------|-------------|
-| `local` | ONNX inference runs on the edge device itself |
+| `local` | Backend-aware inference runs on the edge device itself |
 | `stream` | Raw JPEG frames are streamed to a remote inference server |
 | `llm` | Frames are sent to an OpenAI-compatible vision LLM API |
 
@@ -485,7 +492,8 @@ stream_api_key    = ""
 **Entry point:** `python -m deploy.remote.cli`
 
 Hosts an HTTP inference server.  Edge devices running in `stream` mode POST base64-encoded
-JPEG frames to this server, which performs ONNX inference and returns detection results.
+JPEG frames to this server, which performs backend-aware model inference and returns
+detection results.
 
 **Key config fields:**
 
@@ -648,7 +656,7 @@ or duplicate names.
 
 ## Scripts
 
-Convenience shell scripts live in `scripts/`. See `scripts/README.md` for details.
+Convenience shell scripts live in `scripts/`. See `scripts/README_scripts.md` for details.
 
 Quick reference:
 
@@ -657,7 +665,14 @@ bash scripts/start_stats.sh   # Start statistics API + UI, with health check
 bash scripts/stop_stats.sh    # Stop statistics API + UI
 bash scripts/status_stats.sh  # Show process status and health
 bash scripts/restart_stats.sh # stop + start
+
+python scripts/prepare_voc_detection_dataset.py --workdir ./work-dir \
+  --max-train 1500 --max-val 500 --max-unlabeled 30 --max-deploy 30
 ```
+
+`prepare_voc_detection_dataset.py` downloads VOC2007 and creates YOLO training data,
+Faster-RCNN `LabelRecord` JSON labels, unlabeled images for AutoLabel, and image-folder
+inputs for deploy smoke runs under `work-dir/datasets/`.
 
 ---
 
@@ -668,10 +683,11 @@ The following are **never committed**:
 - `work-dir/config.toml` — your local config
 - `work-dir/runs/`, `work-dir/models/`, `work-dir/outputs/`, `work-dir/stats/`, `work-dir/tmp/`
   — all runtime artifacts
+- model/data archives and weights such as `*.pt`, `*.onnx`, `*.zip`, `*.tar`, `*.tar.gz`
 - `codex.md` — internal development notes
 
 The following **are committed**:
 
 - `work-dir/config.example.toml` — config template
-- `work-dir/README.md` — runtime directory documentation
+- `work-dir/README_work-dir.md` — runtime directory documentation
 - `work-dir/.gitkeep` — keeps the directory in Git

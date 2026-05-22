@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from share.kernel.infer.faster_rcnn import LocalFasterRCNNInferencer
+from share.kernel.infer.faster_rcnn_onnx import LocalFasterRCNNOnnxInferencer
 from share.kernel.media.preview import save_side_by_side_preview
 from share.types.detection import Detection
 from share.types.errors import DataValidationError
@@ -146,13 +147,21 @@ def run_model_autolabel(cfg: dict[str, Any], run_ctx: dict[str, Any]) -> dict[st
     if model_backend == "yolo":
         yolo_model = YOLO(str(model_path), task="detect")
     elif model_backend == "faster_rcnn":
-        faster_inferencer = LocalFasterRCNNInferencer(
-            model_path=model_path,
-            class_names=class_names,
-            default_variant=str(cfg["train"]["faster_rcnn"]["variant"]),
-            confidence=conf,
-            device=str(cfg["train"]["device"]),
-        )
+        if model_path.suffix.lower() == ".onnx":
+            faster_inferencer = LocalFasterRCNNOnnxInferencer(
+                model_path=model_path,
+                class_names=class_names,
+                confidence=conf,
+                device=str(cfg["train"]["device"]),
+            )
+        else:
+            faster_inferencer = LocalFasterRCNNInferencer(
+                model_path=model_path,
+                class_names=class_names,
+                default_variant=str(cfg["train"]["faster_rcnn"]["variant"]),
+                confidence=conf,
+                device=str(cfg["train"]["device"]),
+            )
     else:
         raise DataValidationError(f"unsupported autolabel.model.backend: {model_backend}")
 

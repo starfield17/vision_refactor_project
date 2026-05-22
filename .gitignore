@@ -31,6 +31,10 @@ work-dir/config.resolved.toml
 *.log
 *.pid
 *.zip
+*.tar
+*.tar.gz
+*.tgz
+*.tar.xz
 
 # Optional local env
 .env

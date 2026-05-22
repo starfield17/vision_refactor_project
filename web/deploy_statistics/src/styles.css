@@ -115,12 +115,15 @@ button {
 
 .grid {
   display: grid;
-  grid-template-columns: 380px 1fr;
+  grid-template-columns: minmax(320px, 380px) minmax(0, 1fr);
   gap: 16px;
   margin-top: 16px;
+  align-items: start;
 }
 
 .panel {
+  min-width: 0;
+  overflow: hidden;
   padding: 16px;
 }
 
@@ -139,12 +142,19 @@ table {
   border-collapse: collapse;
 }
 
+.tableWrap {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+}
+
 th,
 td {
   border-bottom: 1px solid #e5e7eb;
   padding: 10px 8px;
   text-align: left;
   font-size: 14px;
+  vertical-align: top;
 }
 
 th {
@@ -178,6 +188,38 @@ th {
 
 .message {
   margin-top: 10px;
+}
+
+.jobsPanel {
+  grid-column: 1 / -1;
+}
+
+.jobsTable {
+  min-width: 780px;
+  table-layout: fixed;
+}
+
+.jobsTable th:nth-child(1),
+.jobsTable td:nth-child(1) {
+  width: 130px;
+}
+
+.jobsTable th:nth-child(2),
+.jobsTable td:nth-child(2) {
+  width: 120px;
+}
+
+.jobsTable th:nth-child(4),
+.jobsTable td:nth-child(4) {
+  width: 170px;
+}
+
+.runCell {
+  overflow-wrap: anywhere;
+}
+
+.dateCell {
+  white-space: nowrap;
 }
 
 @media (max-width: 900px) {

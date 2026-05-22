@@ -119,50 +119,56 @@ function App() {
         </div>
         <div className="panel">
           <h2>Sources</h2>
-          <table>
-            <thead><tr><th>Source</th><th>Events</th><th>Detections</th><th>P95</th></tr></thead>
-            <tbody>
-              {(dashboard?.source_rows || []).map((row) => (
-                <tr key={String(row.source_id)}>
-                  <td>{row.source_id}</td>
-                  <td>{row.events}</td>
-                  <td>{row.detections}</td>
-                  <td>{Number(row.latency_p95_ms).toFixed(1)} ms</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="tableWrap">
+            <table>
+              <thead><tr><th>Source</th><th>Events</th><th>Detections</th><th>P95</th></tr></thead>
+              <tbody>
+                {(dashboard?.source_rows || []).map((row) => (
+                  <tr key={String(row.source_id)}>
+                    <td>{row.source_id}</td>
+                    <td>{row.events}</td>
+                    <td>{row.detections}</td>
+                    <td>{Number(row.latency_p95_ms).toFixed(1)} ms</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-        <div className="panel">
+        <div className="panel jobsPanel">
           <h2>Jobs</h2>
-          <table>
-            <thead><tr><th>Kind</th><th>Status</th><th>Run</th><th>Updated</th></tr></thead>
-            <tbody>
-              {jobs.map((job) => (
-                <tr key={job.job_id}>
-                  <td>{job.kind}</td>
-                  <td><span className={`status ${job.status}`}>{job.status}</span></td>
-                  <td>{job.run_id || job.job_id.slice(0, 8)}</td>
-                  <td>{job.updated_at_utc.slice(0, 19).replace("T", " ")}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="tableWrap">
+            <table className="jobsTable">
+              <thead><tr><th>Kind</th><th>Status</th><th>Run</th><th>Updated</th></tr></thead>
+              <tbody>
+                {jobs.map((job) => (
+                  <tr key={job.job_id}>
+                    <td>{job.kind}</td>
+                    <td><span className={`status ${job.status}`}>{job.status}</span></td>
+                    <td className="runCell" title={job.run_id || job.job_id}>{job.run_id || job.job_id.slice(0, 8)}</td>
+                    <td className="dateCell">{job.updated_at_utc.slice(0, 19).replace("T", " ")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
         <div className="panel">
           <h2>Classes</h2>
-          <table>
-            <thead><tr><th>Class</th><th>Count</th><th>Share</th></tr></thead>
-            <tbody>
-              {(dashboard?.class_rows || []).map((row) => (
-                <tr key={String(row.class_name)}>
-                  <td>{row.class_name}</td>
-                  <td>{row.count}</td>
-                  <td>{Number(row.share_pct).toFixed(1)}%</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="tableWrap">
+            <table>
+              <thead><tr><th>Class</th><th>Count</th><th>Share</th></tr></thead>
+              <tbody>
+                {(dashboard?.class_rows || []).map((row) => (
+                  <tr key={String(row.class_name)}>
+                    <td>{row.class_name}</td>
+                    <td>{row.count}</td>
+                    <td>{Number(row.share_pct).toFixed(1)}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </section>
     </main>

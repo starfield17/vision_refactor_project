@@ -21,6 +21,7 @@ statistics service have been added.
    - [add_to_systemd.sh](#add_to_systemdsh)
    - [add_to_systemd_bin.sh](#add_to_systemd_binsh)
 3. [Utility Scripts](#utility-scripts)
+   - [prepare_voc_detection_dataset.py](#prepare_voc_detection_datasetpy)
    - [get_frame.sh](#get_framesh)
    - [rescan.sh](#rescanssh)
    - [proxy.sh](#proxysh)
@@ -200,6 +201,25 @@ bash scripts/add_to_systemd_bin.sh --python-bin /path/to/venv/bin/python \
 ---
 
 ## Utility Scripts
+
+### `prepare_voc_detection_dataset.py`
+
+Downloads Pascal VOC2007 and converts it into the project runtime layouts:
+
+- YOLO dataset: `work-dir/datasets/voc2007_yolo`
+- Faster-RCNN / AutoLabel `LabelRecord` JSON data: `work-dir/datasets/voc2007_labeled`
+- Unlabeled image folder for LLM AutoLabel: `work-dir/datasets/voc2007_unlabeled/images`
+- Image-folder deploy source: `work-dir/datasets/voc2007_deploy_images`
+
+**Usage:**
+
+```bash
+python scripts/prepare_voc_detection_dataset.py --workdir ./work-dir \
+  --max-train 1500 --max-val 500 --max-unlabeled 30 --max-deploy 30
+```
+
+The downloaded VOC tar archives and converted data stay under `work-dir/` and are ignored
+by Git.
 
 ### `get_frame.sh`
 

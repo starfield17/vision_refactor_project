@@ -131,10 +131,10 @@ The core business logic.  Each sub-package maps to one pipeline stage:
 | Package | Description |
 |---------|-------------|
 | `trainer/` | `run_yolo_train()`, `run_faster_rcnn_train()` — registered with the kernel as backends |
-| `infer/` | ONNX inference adapters for YOLO and Faster-RCNN |
+| `infer/` | Backend-aware inference adapters for YOLO and Faster-RCNN, including ONNX Runtime paths |
 | `autolabel/` | `run_model_autolabel()`, `run_llm_autolabel()` |
 | `deploy/` | `run_edge_local_deploy()`, `run_edge_stream_deploy()`, `run_edge_llm_deploy()`, `run_remote_deploy()` |
-| `export/` | `onnx_export.py` — ONNX export + INT-8 dynamic quantization |
+| `export/` | ONNX export helpers; YOLO uses `onnx_export.py`, Faster-RCNN uses `faster_rcnn_onnx_export.py` |
 | `transport/` | `stats_http.py` (push stats), `frame_http.py` (stream frames) — pure stdlib urllib |
 | `statistics/` | `sqlite_store.py` — SQLite schema init, insert, query |
 | `llm/` | `client.py` — OpenAI-compatible vision API wrapper with retry and QPS limiting |
@@ -317,6 +317,23 @@ Used in `deploy/edge` (stream mode) to forward raw JPEG frames to the remote inf
 
 Both functions depend on `opencv-python`.  Import errors are wrapped as `DataValidationError`.
 
+## Model Export and Inference
+
+YOLO training exports through the Ultralytics path and can optionally run ONNX Runtime
+dynamic quantization to produce `model-int8.onnx`. Faster-RCNN training exports via
+`share/kernel/export/faster_rcnn_onnx_export.py`, which keeps the TorchVision export
+logic decoupled from the trainer and writes a full-precision `model.onnx`.
+
+Deploy and model-based AutoLabel should construct inferencers through
+`share.kernel.infer.factory.create_frame_inferencer()` when they need to handle both
+backends. The factory resolves model metadata from `model_manifest.json` when present and
+chooses YOLO ONNX, Faster-RCNN ONNX, or Faster-RCNN PyTorch inference as appropriate.
+
+When using `onnxruntime-gpu`, the CUDA provider is selected only if
+`CUDAExecutionProvider` is visible to ONNX Runtime. The inference adapters call
+`onnxruntime.preload_dlls()` when available, but the matching NVIDIA CUDA runtime wheels
+or system libraries still need to be installed in the Python environment.
+
 ---
 
 ## Statistics Store
@@ -386,6 +403,9 @@ python -m train.cli \
 # Verify deploy/statistics API starts cleanly
 python -m services.deploy_statistics.api --config ./work-dir/config.toml &
 curl http://localhost:7797/health
+
+# Run regression tests
+python -m pytest -q
 ```
 
 ---
@@ -406,7 +426,15 @@ curl http://localhost:7797/health
 
 ## Testing Guidance
 
-Currently no automated test suite is present.  Recommended additions:
+Run the current pytest suite before committing:
+
+```bash
+python -m pytest -q
+python -m compileall -q share services train autolabel deploy scripts
+npm --prefix web/deploy_statistics run build
+```
+
+Recommended additions:
 
 ### Smoke Tests (pytest)
 
@@ -454,7 +482,8 @@ forbidden_modules = train, autolabel, deploy
 
 | Area | Limitation / TODO |
 |------|------------------|
-| Export | `exportquantize_mode = "static"` is not implemented; only `"dynamic"` is supported |
+| Export | `export.quantize_mode = "static"` is not implemented; only `"dynamic"` is supported |
+| Export | Faster-RCNN ONNX export is FP32 only; quantization is intentionally skipped |
 | Statistics storage | Only `sqlite` backend is implemented; `postgres` is a natural next step |
 | Statistics flush | `statistics.flush_interval_sec` is defined in config but the flush behaviour depends on the SQLite backend implementation |
 | CI | No CI pipeline exists yet; add GitHub Actions lint + py_compile + smoke test |

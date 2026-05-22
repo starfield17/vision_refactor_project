@@ -26,6 +26,15 @@ class LocalYoloInferencer:
         self.img_size = img_size
         self.device = device
 
+        if model_path.suffix.lower() == ".onnx":
+            try:
+                import onnxruntime as ort
+
+                if hasattr(ort, "preload_dlls"):
+                    ort.preload_dlls()
+            except Exception:
+                pass
+
         try:
             from ultralytics import YOLO
         except Exception as exc:

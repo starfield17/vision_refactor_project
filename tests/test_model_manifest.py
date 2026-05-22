@@ -65,3 +65,47 @@ class ModelManifestTests(unittest.TestCase):
             self.assertEqual(identity["backend"], "yolo")
             self.assertEqual(identity["model_id"], "exp001-yolo")
             self.assertTrue(identity["manifest_path"].endswith("model_manifest.json"))
+
+    def test_faster_rcnn_onnx_manifest_is_deployment_ready(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            model_dir = root / "models" / "exp-frcnn"
+            model_dir.mkdir(parents=True)
+            onnx_path = model_dir / "model.onnx"
+            onnx_path.write_text("fake", encoding="utf-8")
+
+            cfg = {
+                "workspace": {"run_name": "exp-frcnn"},
+                "train": {"backend": "faster_rcnn", "img_size": 640},
+                "export": {"onnx": True},
+                "class_map": {
+                    "names": ["person", "car"],
+                    "id_map": {"person": 0, "car": 1},
+                },
+            }
+            run_ctx = {"run_id": "exp-frcnn-20260306-120000"}
+            artifacts = {
+                "backend": "faster_rcnn",
+                "weights": {
+                    "model_pt": str(model_dir / "model.pt"),
+                    "labels_snapshot": str(model_dir / "labels.json"),
+                },
+                "export": {
+                    "onnx_path": str(onnx_path),
+                    "quantized_onnx_path": "",
+                    "fp16_onnx_path": "",
+                    "final_infer_model_path": str(onnx_path),
+                    "export_ok": True,
+                    "quantize_ok": False,
+                    "quantize_strategy": "not-run",
+                    "messages": ["ok"],
+                },
+            }
+
+            manifest = build_train_model_manifest(cfg, run_ctx, artifacts)
+
+            self.assertTrue(manifest["deployment_ready"])
+            self.assertIn("autolabel-model", manifest["supported_modes"])
+            self.assertIn("deploy-edge-local", manifest["supported_modes"])
+            self.assertIn("deploy-edge-stream", manifest["supported_modes"])
+            self.assertIn("deploy-remote", manifest["supported_modes"])

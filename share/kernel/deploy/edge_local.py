@@ -6,8 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from share.kernel.deploy.edge_common import FpsLimiter, append_stats_snapshot, iter_source_frames
-from share.kernel.infer.local_yolo import LocalYoloInferencer
-from share.kernel.model_manifest import resolve_model_identity
+from share.kernel.infer.factory import create_frame_inferencer
 from share.kernel.transport.stats_http import push_stats_event
 from share.types.errors import DataValidationError, TransportError
 from share.types.stats import StatsEvent
@@ -31,19 +30,15 @@ def run_edge_local_deploy(cfg: dict[str, Any], run_ctx: dict[str, Any]) -> dict[
     edge_cfg = cfg["deploy"]["edge"]
     source_id = str(edge_cfg["source_id"])
     local_model = Path(edge_cfg["local_model"])
-    model_meta = resolve_model_identity(
-        local_model,
+    resolved_inferencer = create_frame_inferencer(
+        model_path=local_model,
+        cfg=cfg,
+        confidence=float(edge_cfg["confidence"]),
         default_backend="yolo",
         default_model_id=f"edge-local:{local_model.stem}",
     )
-
-    inferencer = LocalYoloInferencer(
-        model_path=local_model,
-        class_names=list(cfg["class_map"]["names"]),
-        confidence=float(edge_cfg["confidence"]),
-        img_size=int(cfg["train"]["img_size"]),
-        device=str(cfg["train"]["device"]),
-    )
+    inferencer = resolved_inferencer.inferencer
+    model_meta = resolved_inferencer.model_meta
 
     run_id = str(run_ctx["run_id"])
     run_dir = Path(str(run_ctx["run_dir"]))
