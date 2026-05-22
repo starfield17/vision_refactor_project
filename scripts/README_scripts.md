@@ -17,16 +17,19 @@ statistics service have been added.
    - [stop_stats.sh](#stop_statssh)
    - [status_stats.sh](#status_statssh)
    - [restart_stats.sh](#restart_statssh)
-2. [System Integration Scripts](#system-integration-scripts)
+2. [Train / AutoLabel Service Scripts](#train--autolabel-service-scripts)
+   - [start_train_autolabel.sh](#start_train_autolabelsh)
+   - [stop_train_autolabel.sh](#stop_train_autolabelsh)
+3. [System Integration Scripts](#system-integration-scripts)
    - [add_to_systemd.sh](#add_to_systemdsh)
    - [add_to_systemd_bin.sh](#add_to_systemd_binsh)
-3. [Utility Scripts](#utility-scripts)
+4. [Utility Scripts](#utility-scripts)
    - [prepare_voc_detection_dataset.py](#prepare_voc_detection_datasetpy)
    - [get_frame.sh](#get_framesh)
    - [rescan.sh](#rescanssh)
    - [proxy.sh](#proxysh)
    - [change_pip_conda_source.sh](#change_pip_conda_sourcesh)
-4. [What Was NOT Migrated](#what-was-not-migrated)
+5. [What Was NOT Migrated](#what-was-not-migrated)
 
 ---
 
@@ -141,6 +144,58 @@ Convenience wrapper: calls `stop_stats.sh` followed by `start_stats.sh`.
 ```bash
 bash scripts/restart_stats.sh [--config PATH] [--workdir PATH]
 ```
+
+---
+
+## Train / AutoLabel Service Scripts
+
+These scripts manage the two-process train/autolabel WebUI stack:
+- **Backend** — `services.train_autolabel.api` FastAPI server on port `7793` by default.
+- **UI** — React/Vite app under `web/train_autolabel` on port `7794` by default.
+
+The backend API does not serve `/`; use `/health` for health checks and the UI port for
+the browser page.
+
+### `start_train_autolabel.sh`
+
+Starts the train/autolabel backend and React WebUI in the background, then checks both
+the backend `/health` endpoint and the UI port.
+
+**Usage:**
+
+```bash
+bash scripts/start_train_autolabel.sh [--config PATH] [--workdir PATH] [--ui-port PORT] \
+  [--env-file PATH] [--python-bin PATH]
+```
+
+**What it does:**
+
+1. Reads `--config` (default: `./work-dir/config.toml`) to resolve `workspace.root` and
+   `[services.train_autolabel]`.
+2. Sources `work-dir/secrets/llm.env` if present, or a custom `--env-file`, so LLM
+   AutoLabel credentials are available to the backend without tracking them in Git.
+3. Launches `python -m services.train_autolabel.api` and writes
+   `work-dir/tmp/train_autolabel_api.pid`.
+4. Launches the Vite dev server from `web/train_autolabel` and writes
+   `work-dir/tmp/train_autolabel_ui.pid`.
+5. Exports `VITE_TRAIN_AUTOLABEL_API_URL` and `VITE_TRAIN_AUTOLABEL_API_TOKEN` for the UI.
+
+If the API or UI port is already serving, the script reports that process as `external`
+instead of starting a duplicate process.
+
+### `stop_train_autolabel.sh`
+
+Stops train/autolabel processes started by `start_train_autolabel.sh`.
+
+**Usage:**
+
+```bash
+bash scripts/stop_train_autolabel.sh [--config PATH] [--workdir PATH] [--python-bin PATH]
+```
+
+The script only stops PIDs recorded in `work-dir/tmp/train_autolabel_api.pid` and
+`work-dir/tmp/train_autolabel_ui.pid`. If the service was started manually before the
+start script was used, stop that manual process directly.
 
 ---
 

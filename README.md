@@ -113,6 +113,8 @@ vision-refactor-project/
 │   ├── stop_stats.sh
 │   ├── status_stats.sh
 │   ├── restart_stats.sh
+│   ├── start_train_autolabel.sh ← Start train/autolabel backend + React UI
+│   ├── stop_train_autolabel.sh
 │   ├── add_to_systemd.sh
 │   ├── add_to_systemd_bin.sh
 │   ├── get_frame.sh           ← Grab a single frame from a source
@@ -665,6 +667,8 @@ bash scripts/start_stats.sh   # Start statistics API + UI, with health check
 bash scripts/stop_stats.sh    # Stop statistics API + UI
 bash scripts/status_stats.sh  # Show process status and health
 bash scripts/restart_stats.sh # stop + start
+bash scripts/start_train_autolabel.sh # Start train/autolabel API + UI
+bash scripts/stop_train_autolabel.sh  # Stop train/autolabel API + UI
 
 python scripts/prepare_voc_detection_dataset.py --workdir ./work-dir \
   --max-train 1500 --max-val 500 --max-unlabeled 30 --max-deploy 30
