@@ -1,91 +1,68 @@
-"""Deploy remote CLI entrypoint (Phase 5)."""
+"""Deploy remote CLI frontend for the deploy/statistics backend service."""
 
 from __future__ import annotations
 
 import argparse
-import shutil
+import json
 import sys
 from pathlib import Path
 
-from share.config.config_loader import load_config, save_resolved_config
-from share.kernel.deploy.remote_server import run_remote_deploy
-from share.kernel.kernel import VisionKernel
-from share.kernel.registry import KernelRegistry
-from share.kernel.utils.logging import StructuredLogger
-from share.types.errors import ConfigError
+from share.application.api_common import get_json, post_json
+from share.application.service_client import load_service_connection
+from share.types.errors import ConfigError, TransportError
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Phase 5 deploy remote CLI")
-    parser.add_argument("--workdir", default=None, help="Override workspace.root")
-    parser.add_argument("--config", required=True, help="Path to config.toml")
+    parser = argparse.ArgumentParser(description="Deploy remote runtime CLI")
+    parser.add_argument("--workdir", default=None)
+    parser.add_argument("--config", required=True)
+    parser.add_argument("--api-url", default=None)
+    parser.add_argument("--api-token", default=None)
+    parser.add_argument("--set", action="append", default=[], metavar="KEY=VALUE")
+    parser.add_argument("--json-summary", action="store_true")
     parser.add_argument(
-        "--set",
-        action="append",
-        default=[],
-        metavar="KEY=VALUE",
-        help="Config override, repeatable. Example: --set deploy.remote.listen_port=60052",
+        "command",
+        nargs="?",
+        default="start",
+        choices=["start", "stop", "status"],
+        help="Remote runtime command.",
     )
     return parser
 
 
-def _resolve_log_path(cfg: dict) -> Path:
-    workdir = Path(cfg["workspace"]["root"])
-    log_file = Path(cfg["workspace"]["log_file"])
-    if log_file.is_absolute():
-        return log_file
-    return workdir / log_file
+def _print_response(payload: dict[str, object], json_summary: bool) -> None:
+    for key in ("status", "run_id", "frames_processed", "detections_total", "stats_sent", "stats_failed"):
+        if key in payload:
+            print(f"{key}={payload[key]}")
+    if payload.get("error"):
+        print(f"error={payload['error']}", file=sys.stderr)
+    if json_summary:
+        print(json.dumps(payload, ensure_ascii=True))
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = build_parser()
-    args = parser.parse_args(argv)
-
+    args = build_parser().parse_args(argv)
     config_path = Path(args.config).resolve()
     workdir_override = str(Path(args.workdir).resolve()) if args.workdir else None
-
     try:
-        cfg = load_config(
+        api_url, token = load_service_connection(
             config_path=config_path,
-            overrides=args.set,
+            service_name="deploy_statistics",
             workdir_override=workdir_override,
+            overrides=list(args.set),
+            api_url_override=args.api_url,
+            api_token_override=args.api_token,
         )
-    except ConfigError as exc:
-        print(f"[CONFIG ERROR] {exc}", file=sys.stderr)
+        if args.command == "status":
+            payload = get_json(api_url, "/api/v1/deploy/remote/status", token=token)
+        else:
+            payload = post_json(api_url, f"/api/v1/deploy/remote/{args.command}", {}, token=token)
+    except (ConfigError, TransportError) as exc:
+        print(f"[API ERROR] {exc}", file=sys.stderr)
         return 2
 
-    log_path = _resolve_log_path(cfg)
-    logger = StructuredLogger(log_path=log_path, level=cfg["workspace"]["log_level"])
-    logger.info("deploy.remote.cli.start", "CLI started", config_path=str(config_path))
-
-    registry = KernelRegistry()
-    registry.register_deployer("remote", run_remote_deploy)
-
-    kernel = VisionKernel(cfg=cfg, logger=logger, registry=registry)
-    result = kernel.run_deploy_remote()
-
-    resolved_path = result.run_context.run_dir / "config.resolved.toml"
-    save_resolved_config(cfg, resolved_path)
-    latest_link = Path(cfg["workspace"]["root"]) / "config.resolved.toml"
-    shutil.copyfile(resolved_path, latest_link)
-
-    logger.info(
-        "deploy.remote.cli.done",
-        "CLI finished",
-        run_id=result.run_context.run_id,
-        status=result.status,
-        resolved_config=str(resolved_path),
-    )
-
-    print(f"run_id={result.run_context.run_id}")
-    print(f"status={result.status}")
-    print(f"resolved_config={resolved_path}")
-    print(f"artifacts={result.run_context.run_dir / 'artifacts.json'}")
-
-    if result.status != "ok":
-        print(f"error={result.error}", file=sys.stderr)
-        return 1
-    return 0
+    _print_response(payload, json_summary=args.json_summary)
+    return 0 if payload.get("ok") is True else 1
 
 
 if __name__ == "__main__":

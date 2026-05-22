@@ -83,7 +83,7 @@ api_key = ""
 stats_timeout_sec = 2.0
 save_annotated = true
 max_frames = 0
-stream_endpoint = "http://127.0.0.1:60051/api/v1/frame"
+stream_endpoint = "http://127.0.0.1:7797/api/v1/frame"
 stream_timeout_sec = 5.0
 stream_api_key = ""
 
@@ -120,6 +120,20 @@ db_path = "./work-dir/stats/stats.db"
 public_host = "0.0.0.0"
 api_key = ""
 rate_limit_per_sec = 0
+
+[services.train_autolabel]
+host = "127.0.0.1"
+port = 7793
+api_token = ""
+api_token_env_name = "VISION_TRAIN_AUTOLABEL_API_TOKEN"
+job_db_path = "./work-dir/state/train_autolabel_jobs.db"
+
+[services.deploy_statistics]
+host = "127.0.0.1"
+port = 7797
+api_token = ""
+api_token_env_name = "VISION_DEPLOY_STATISTICS_API_TOKEN"
+job_db_path = "./work-dir/state/deploy_statistics_jobs.db"
 
 [logging]
 jsonl = true

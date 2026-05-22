@@ -3,8 +3,9 @@
 The `kernel/ logic for the Vision Refactor Project.
 It is the largest and most important sub-package in `share/`.
 
-The top-level modules (`train/`, `autolabel/`, `deploy/`) are thin CLI wrappers —
-they parse arguments, build a registry, then delegate everything to the kernel.
+The top-level modules (`train/`, `autolabel/`, `deploy/`) are API frontends. Long-running
+work is submitted to the backend services under `services/`, whose workers instantiate the
+kernel and delegate pipeline execution here.
 
 ---
 
@@ -387,4 +388,3 @@ Output format (one JSON per line):
 - Log level filtering: messages below `min_level` are discarded without file I/O.
 - Thread safety: all file writes are protected by `threading.Lock`.
 - Parent directory creation: `log_path.parent.mkdir(parents=True, exist_ok=True)` on init.
-

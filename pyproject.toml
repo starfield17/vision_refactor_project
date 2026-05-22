@@ -12,7 +12,6 @@ dependencies = [
   "onnxconverter-common>=1.14.0",
   "fastapi>=0.115.0",
   "uvicorn>=0.30.0",
-  "streamlit>=1.40.0",
   "PySide6>=6.8.0",
 ]
 

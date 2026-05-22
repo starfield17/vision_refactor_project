@@ -4,7 +4,9 @@ A fully modular, self-contained computer-vision platform covering the complete M
 **Train → AutoLabel → Deploy (Edge / Remote) → Statistics**.
 
 It is designed to be independent of any legacy codebase, with clean separation between pipeline
-modules, a single unified configuration system, and structured JSONL logging throughout.
+modules, a single unified configuration system, structured JSONL logging, and service-backed
+frontends. CLI, React, and PySide6 frontends call long-running backend APIs instead of running
+pipelines directly.
 
 ---
 
@@ -38,13 +40,14 @@ modules, a single unified configuration system, and structured JSONL logging thr
 | 1 | `train` | Train a detection model (YOLO or Faster-RCNN), export to ONNX |
 | 2 | _(export)_ | Embedded in training: INT-8 dynamic quantization via ONNX Runtime |
 | 3 | `autolabel` | Auto-annotate an unlabeled image folder using a local model or an LLM API |
-| 4 | `deploy/statistics` | Ingest and visualize per-frame detection telemetry via REST API + Streamlit UI |
+| 4 | `deploy/statistics` | Ingest/query per-frame telemetry through the deploy-statistics backend and React dashboard |
 | 5 | `deploy/edge` | Run inference on camera / video / image folder, push stats to the statistics service |
 | 5 | `deploy/remote` | Host a REST inference server that edge devices can stream frames to |
 
 All modules share a single TOML config file, a common `share/` library, and the `work-dir/`
-runtime directory.  No module may import from any other top-level module — all shared logic
-lives in `share/`.
+runtime directory. Runtime work is coordinated by two backend services:
+`services.train_autolabel` and `services.deploy_statistics`. No module may import from any
+other top-level module — all shared logic lives in `share/`.
 
 ---
 
@@ -59,13 +62,13 @@ vision-refactor-project/
 ├── train/                     ← CLI entry-point: model training
 │   ├── __init__.py
 │   ├── cli.py                 ← python -m train.cli
-│   └── web.py                 ← python -m train.web (Streamlit, 7794)
+│   └── web.py                 ← compatibility notice; React app lives in web/train_autolabel
 │   └── launch_gui.py          ← python -m train.launch_gui
 │
 ├── autolabel/                 ← CLI entry-point: automatic labeling
 │   ├── __init__.py
 │   ├── cli.py                 ← python -m autolabel.cli
-│   └── web.py                 ← python -m autolabel.web (Streamlit, 7795)
+│   └── web.py                 ← compatibility notice; React app lives in web/train_autolabel
 │   └── launch_gui.py          ← python -m autolabel.launch_gui
 │
 ├── deploy/                    ← CLI entry-points: deployment services
@@ -74,14 +77,16 @@ vision-refactor-project/
 │   ├── remote/
 │   │   ├── cli.py             ← python -m deploy.remote.cli
 │   └── statistics/
-│       ├── api.py             ← python -m deploy.statistics.api   (FastAPI, port 7797)
-│       └── ui.py              ← python -m deploy.statistics.ui    (Streamlit, port 7796)
+│       ├── api.py             ← compatibility launcher for services.deploy_statistics.api
+│       └── ui.py              ← compatibility notice; React app lives in web/deploy_statistics
 │
+├── services/                  ← FastAPI backend daemons for train/autolabel and deploy/statistics
+├── web/                       ← React frontends: train_autolabel and deploy_statistics
 ├── share/                     ← Shared library (imported by all modules above)
 │   ├── config/
 │   │   ├── config_loader.py   ← load, merge, validate, resolve paths, serialize TOML
 │   │   └── schema.py          ← DEFAULT_CONFIG + validate_config()
-│   ├── application/           ← shared frontend services for train/autolabel
+│   ├── application/           ← API clients, job store/runner, and service helpers
 │   ├── desktop/               ← PySide6 desktop GUI
 │   ├── kernel/                ← Core pipeline implementations
 │   │   ├── kernel.py          ← VisionKernel: orchestrates run contexts & pipelines
@@ -104,7 +109,7 @@ vision-refactor-project/
 │
 ├── scripts/                   ← Shell utility & operations scripts
 │   ├── README.md
-│   ├── start_stats.sh         ← One-shot start statistics API + UI
+│   ├── start_stats.sh         ← Start deploy/statistics backend + React UI
 │   ├── stop_stats.sh
 │   ├── status_stats.sh
 │   ├── restart_stats.sh
@@ -137,12 +142,11 @@ vision-refactor-project/
   - `onnx >= 1.16.0` — model export
   - `onnxruntime >= 1.18.0` — ONNX inference + INT-8 quantization
   - `onnxconverter-common >= 1.14.0` — ONNX conversion helpers
-  - `fastapi >= 0.115.0` — statistics REST API
+  - `fastapi >= 0.115.0` — backend service APIs
   - `uvicorn >= 0.30.0` — ASGI server for FastAPI
-- `streamlit >= 1.40.0` — statistics UI
+- Node.js + npm — React web frontends under `web/`
 - `PySide6 >= 6.8.0` — local desktop GUI for Train/AutoLabel
 - Optional (auto-detected at runtime):
-  - `plotly` — enhanced charts in statistics UI
   - `torchvision` — required for Faster-RCNN training/inference
 
 ---
@@ -162,6 +166,10 @@ pip install -r deploy/requirements.txt     # deploy.edge / deploy.remote / deplo
 # 3. Prepare your local configuration
 cp work-dir/config.example.toml work-dir/config.toml
 # Then edit work-dir/config.toml to match your environment
+
+# 4. Install frontend dependencies when using the React web apps
+npm --prefix web/train_autolabel install
+npm --prefix web/deploy_statistics install
 ```
 
 The root `pyproject.toml` remains the shared package metadata. These module-local
@@ -197,7 +205,17 @@ weights = "./weights/yolov8n.pt"
 yolo_dataset_dir = "./work-dir/datasets/yolo"
 ```
 
-### Step 2 — Train
+### Step 2 — Start Backend Services
+
+```bash
+# Terminal A: train/autolabel backend, default http://127.0.0.1:7793
+python -m services.train_autolabel.api --config ./work-dir/config.toml
+
+# Terminal B: deploy/statistics backend, default http://127.0.0.1:7797
+python -m services.deploy_statistics.api --config ./work-dir/config.toml
+```
+
+### Step 3 — Train
 
 ```bash
 python -m train.cli \
@@ -205,9 +223,10 @@ python -m train.cli \
   --workdir ./work-dir
 ```
 
-Output is written to `work-dir/runs/<run-id>/`.
+The CLI submits a backend job and waits by default. Output is written to
+`work-dir/runs/<run-id>/`.
 
-### Step 3 — AutoLabel unlabeled images
+### Step 4 — AutoLabel unlabeled images
 
 ```bash
 # Using the trained model
@@ -217,21 +236,19 @@ python -m autolabel.cli \
   --set autolabel.model.onnx_model=./work-dir/models/exp001/model-int8.onnx
 ```
 
-### Optional — Web UIs for Train/AutoLabel
+### Optional — React Web UIs
 
 ```bash
-# Train web: http://localhost:7794
-python -m train.web --config ./work-dir/config.toml --workdir ./work-dir
+# Train + Autolabel web: http://localhost:7794
+npm --prefix web/train_autolabel run dev
 
-# AutoLabel web: http://localhost:7795
-python -m autolabel.web --config ./work-dir/config.toml --workdir ./work-dir
+# Deploy + Statistics web: http://localhost:7796
+npm --prefix web/deploy_statistics run dev
 ```
 
-Both web pages provide a `Device` selector (`cpu` or `gpu`), where `gpu` maps to
-`train.device=cuda:0`.
-
-Train/AutoLabel web UIs now also include **Save Config** buttons so you can persist
-their section settings directly into `work-dir/config.toml` before running.
+The React apps call the backend service APIs. Configure `VITE_TRAIN_AUTOLABEL_API_URL`,
+`VITE_TRAIN_AUTOLABEL_API_TOKEN`, `VITE_DEPLOY_STATISTICS_API_URL`, or
+`VITE_DEPLOY_STATISTICS_API_TOKEN` when the defaults are not suitable.
 
 ### Optional — Local Desktop GUI for Train/AutoLabel
 
@@ -243,26 +260,17 @@ python -m train.launch_gui
 python -m autolabel.launch_gui
 ```
 
-The desktop GUI is a local PySide6 application. It reuses the same config system,
-work-dir layout, CLI modules, and application services as the existing CLI/Web flows.
+The desktop GUI is a local PySide6 application. It submits and monitors backend jobs
+through the same HTTP APIs used by CLI and React.
 
-### Step 4 — Start the statistics service
-
-```bash
-# Terminal A: API (receives telemetry)
-python -m deploy.statistics.api --config ./work-dir/config.toml
-
-# Terminal B: UI (http://localhost:7796)
-python -m deploy.statistics.ui --config ./work-dir/config.toml
-```
-
-Or use the convenience script:
+### Step 5 — Start the deploy/statistics service and dashboard
 
 ```bash
+# Starts services.deploy_statistics.api and the React dashboard dev server
 bash scripts/start_stats.sh --config ./work-dir/config.toml
 ```
 
-### Step 5 — Deploy on edge
+### Step 6 — Deploy on edge
 
 ```bash
 python -m deploy.edge.cli \
@@ -296,7 +304,9 @@ All modules share a single `work-dir/config.toml`.  The file format is **TOML**.
 | `[deploy.edge]` | Edge inference: source type, model, FPS, stats endpoint |
 | `[deploy.edge.llm]` | LLM settings when edge mode = `llm` |
 | `[deploy.remote]` | Remote server: listen host/port, model, ingest API key |
-| `[deploy.statistics]` | API/UI ports, SQLite DB path, API key, rate limit |
+| `[deploy.statistics]` | Legacy UI port, SQLite stats DB path, stats ingest API key, rate limit |
+| `[services.train_autolabel]` | Train/autolabel backend host, port, token, job DB |
+| `[services.deploy_statistics]` | Deploy/statistics backend host, port, token, job DB |
 | `[logging]` | Enable/disable JSONL output |
 | `[statistics]` | DB flush interval |
 
@@ -498,17 +508,13 @@ max_payload_mb = 8               # Max accepted request size in MB
 
 ### `deploy/statistics`
 
-**API entry point:** `python -m deploy.statistics.api`
-**UI entry point:** `python -m deploy.statistics.ui`
+**Backend entry point:** `python -m services.deploy_statistics.api`
+**Compatibility API entry point:** `python -m deploy.statistics.api`
+**React UI:** `npm --prefix web/deploy_statistics run dev`
 
-A two-service observability stack:
-
-- **API** (`FastAPI`, default port `7797`): receives `StatsEvent` JSON payloads from edge/remote
-  deployers via `POST /api/v1/push`.  Supports per-source rate limiting and optional API key
-  authentication.  Storage backend: SQLite.
-- **UI** (`Streamlit`, default port `7796`): real-time analytics dashboard with latency trend,
-  detection count trend, class distribution donut chart, per-source breakdown, and raw event log.
-  Supports source filtering, minimum-detection threshold filter, and auto-refresh.
+The deploy/statistics backend is a single FastAPI service. It receives telemetry, serves
+dashboard queries, manages deploy edge jobs, and can start/stop the remote frame inference
+runtime used by stream mode. The React dashboard calls this API; it does not read SQLite directly.
 
 **Key config fields:**
 
@@ -530,8 +536,14 @@ flush_interval_sec = 5
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/health` | Health check; returns storage info |
+| `GET` | `/health` | Health check |
 | `POST` | `/api/v1/push` | Ingest a `StatsEvent` payload |
+| `GET` | `/api/v1/statistics/dashboard` | Dashboard view model |
+| `GET` | `/api/v1/statistics/events` | Recent events |
+| `POST` | `/api/v1/deploy/edge/jobs` | Submit edge deploy job |
+| `POST` | `/api/v1/deploy/remote/start` | Start remote frame runtime |
+| `POST` | `/api/v1/deploy/remote/stop` | Stop remote frame runtime |
+| `POST` | `/api/v1/frame` | Remote frame inference endpoint |
 
 **StatsEvent JSON schema:**
 
@@ -551,7 +563,9 @@ flush_interval_sec = 5
 ## Common CLI Flags
 
 All CLIs (`train.cli`, `autolabel.cli`, `deploy.edge.cli`, `deploy.remote.cli`,
-`deploy.statistics.api`, `deploy.statistics.ui`) share these flags:
+`deploy.statistics.api`, `deploy.statistics.ui`) share these local config flags. User-facing
+CLIs also accept `--api-url`, `--api-token`, `--no-wait`, `--poll-sec`, and
+`--wait-timeout-sec` where job submission is supported:
 
 | Flag | Required | Description |
 |------|----------|-------------|

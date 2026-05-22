@@ -1,7 +1,6 @@
 ultralytics>=8.4.0
 opencv-python>=4.9.0
 onnxruntime>=1.18.0
-streamlit>=1.40.0
 PySide6>=6.8.0
 numpy
 torch

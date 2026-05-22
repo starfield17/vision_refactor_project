@@ -24,6 +24,8 @@ PATH_FIELDS: tuple[tuple[str, ...], ...] = (
     ("deploy", "edge", "local_model"),
     ("deploy", "remote", "model"),
     ("deploy", "statistics", "db_path"),
+    ("services", "train_autolabel", "job_db_path"),
+    ("services", "deploy_statistics", "job_db_path"),
 )
 
 

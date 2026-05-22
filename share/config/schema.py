@@ -100,7 +100,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
             "stats_timeout_sec": 2.0,
             "save_annotated": True,
             "max_frames": 0,
-            "stream_endpoint": "http://127.0.0.1:60051/api/v1/frame",
+            "stream_endpoint": "http://127.0.0.1:7797/api/v1/frame",
             "stream_timeout_sec": 5.0,
             "stream_api_key": "",
             "llm": {
@@ -137,6 +137,22 @@ DEFAULT_CONFIG: dict[str, Any] = {
             "public_host": "0.0.0.0",
             "api_key": "",
             "rate_limit_per_sec": 0,
+        },
+    },
+    "services": {
+        "train_autolabel": {
+            "host": "127.0.0.1",
+            "port": 7793,
+            "api_token": "",
+            "api_token_env_name": "VISION_TRAIN_AUTOLABEL_API_TOKEN",
+            "job_db_path": "./work-dir/state/train_autolabel_jobs.db",
+        },
+        "deploy_statistics": {
+            "host": "127.0.0.1",
+            "port": 7797,
+            "api_token": "",
+            "api_token_env_name": "VISION_DEPLOY_STATISTICS_API_TOKEN",
+            "job_db_path": "./work-dir/state/deploy_statistics_jobs.db",
         },
     },
     "logging": {"jsonl": True},
@@ -435,6 +451,21 @@ def validate_config(cfg: dict[str, Any]) -> dict[str, Any]:
     rate_limit = _expect_type(stats_cfg, "rate_limit_per_sec", int, "deploy.statistics")
     if rate_limit < 0:
         raise ConfigError("deploy.statistics.rate_limit_per_sec must be >= 0")
+
+    services_cfg = _expect_type(cfg, "services", dict, "root")
+    for service_name in ("train_autolabel", "deploy_statistics"):
+        service_cfg = _expect_type(services_cfg, service_name, dict, "services")
+        host = _expect_type(service_cfg, "host", str, f"services.{service_name}")
+        port = _expect_type(service_cfg, "port", int, f"services.{service_name}")
+        if not host:
+            raise ConfigError(f"services.{service_name}.host must not be empty")
+        if not (1 <= port <= 65535):
+            raise ConfigError(f"services.{service_name}.port must be in [1, 65535]")
+        _expect_type(service_cfg, "api_token", str, f"services.{service_name}")
+        _expect_type(service_cfg, "api_token_env_name", str, f"services.{service_name}")
+        job_db_path = _expect_type(service_cfg, "job_db_path", str, f"services.{service_name}")
+        if not job_db_path:
+            raise ConfigError(f"services.{service_name}.job_db_path must not be empty")
 
     _expect_type(cfg, "logging", dict, "root")
     _expect_type(cfg["logging"], "jsonl", bool, "logging")

@@ -55,8 +55,9 @@ config_path = Path(sys.argv[1]).resolve()
 workdir_override = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2] else None
 cfg = load_config(config_path=config_path, workdir_override=workdir_override, overrides=[])
 stats_cfg = cfg["deploy"]["statistics"]
+svc_cfg = cfg["services"]["deploy_statistics"]
 print(Path(cfg["workspace"]["root"]).resolve())
-print(int(stats_cfg["api_port"]))
+print(int(svc_cfg["port"]))
 print(int(stats_cfg["ui_port"]))
 PY
 )
@@ -166,9 +167,9 @@ PY
   return 1
 }
 
-echo "[INFO] Starting statistics API/UI ..."
-API_PID="$(start_service_if_needed "$API_PID_FILE" "$API_LOG" python -m deploy.statistics.api "${COMMON_ARGS[@]}")"
-UI_PID="$(start_service_if_needed "$UI_PID_FILE" "$UI_LOG" python -m deploy.statistics.ui "${COMMON_ARGS[@]}")"
+echo "[INFO] Starting deploy/statistics backend + React UI ..."
+API_PID="$(start_service_if_needed "$API_PID_FILE" "$API_LOG" python -m services.deploy_statistics.api "${COMMON_ARGS[@]}")"
+UI_PID="$(start_service_if_needed "$UI_PID_FILE" "$UI_LOG" npm --prefix "${ROOT_DIR}/web/deploy_statistics" run dev -- --host 0.0.0.0 --port "$UI_PORT")"
 
 if ! wait_http_ok "http://127.0.0.1:${API_PORT}/health" 25; then
   echo "[ERROR] Statistics API health check failed. See log: $API_LOG" >&2

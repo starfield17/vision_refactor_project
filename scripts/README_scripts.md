@@ -31,16 +31,18 @@ statistics service have been added.
 
 ## Statistics Service Scripts
 
-These four scripts manage the two-process statistics stack:
-- **API** — FastAPI server on port `7797` (receives telemetry)
-- **UI** — Streamlit dashboard on port `7796` (visualization)
+These four scripts manage the two-process deploy/statistics stack:
+- **Backend** — `services.deploy_statistics.api` FastAPI server on port `7797`
+  by default. It receives telemetry, serves dashboard queries, manages deploy jobs,
+  and can host the remote frame inference runtime.
+- **UI** — React/Vite dashboard on port `7796` by default.
 
 Both processes are tracked via PID files written to `work-dir/`.
 
 ### `start_stats.sh`
 
-Starts the Statistics API and UI in the background, then performs a health check against
-the API's `/health` endpoint.
+Starts the deploy/statistics backend and React dashboard in the background, then performs
+a health check against the backend `/health` endpoint.
 
 **Usage:**
 
@@ -51,19 +53,19 @@ bash scripts/start_stats.sh [--config PATH] [--workdir PATH]
 **What it does:**
 
 1. Reads `--config` (default: `./work-dir/config.toml`) to determine ports and paths.
-2. Launches `python -m deploy.statistics.api` in the background, saving its PID to
-   `work-dir/stats-api.pid`.
-3. Launches `python -m deploy.statistics.ui` in the background, saving its PID to
-   `work-dir/stats-ui.pid`.
-4. Polls `http://localhost:<api_port>/health` until the API responds or a timeout
+2. Launches `python -m services.deploy_statistics.api` in the background, saving its PID to
+   `work-dir/tmp/statistics_api.pid`.
+3. Launches `npm --prefix web/deploy_statistics run dev` in the background, saving its PID to
+   `work-dir/tmp/statistics_ui.pid`.
+4. Polls `http://localhost:<services.deploy_statistics.port>/health` until the backend responds or a timeout
    (default: 15 seconds) is reached.
 5. Prints a success or failure summary with the PIDs and URLs.
 
 **Health check output example:**
 
 ```
-[start_stats] Starting Statistics API on port 7797...
-[start_stats] Starting Statistics UI on port 7796...
+[start_stats] Starting deploy/statistics backend on port 7797...
+[start_stats] Starting React dashboard on port 7796...
 [start_stats] Waiting for API health check...
 [start_stats] ✓ API is up (pid 12345)
 [start_stats] ✓ UI is up (pid 12346)
@@ -79,7 +81,8 @@ bash scripts/start_stats.sh [--config PATH] [--workdir PATH]
 
 ### `stop_stats.sh`
 
-Stops the Statistics API and UI by sending `SIGTERM` to the PIDs recorded in the PID files.
+Stops the deploy/statistics backend and React UI by sending `SIGTERM` to the PIDs recorded
+in the PID files.
 
 **Usage:**
 
@@ -89,7 +92,7 @@ bash scripts/stop_stats.sh [--workdir PATH]
 
 **What it does:**
 
-1. Reads `work-dir/stats-api.pid` and `work-dir/stats-ui.pid`.
+1. Reads `work-dir/tmp/statistics_api.pid` and `work-dir/tmp/statistics_ui.pid`.
 2. Sends `SIGTERM` to each process.
 3. Waits up to 5 seconds for each process to exit; if it doesn't, sends `SIGKILL`.
 4. Removes the PID files.
@@ -102,7 +105,7 @@ bash scripts/stop_stats.sh [--workdir PATH]
 
 ### `status_stats.sh`
 
-Reports the current running state of the Statistics API and UI.
+Reports the current running state of the deploy/statistics backend and React UI.
 
 **Usage:**
 
@@ -114,7 +117,7 @@ bash scripts/status_stats.sh [--workdir PATH]
 
 ```
 [status_stats] API (pid 12345): RUNNING
-[status_stats] API health: OK {"ok": true, "storage": "sqlite", ...}
+[status_stats] API health: OK {"ok": true, "service": "deploy_statistics", ...}
 [status_stats] UI  (pid 12346): RUNNING
 [status_stats] UI  accessible at http://localhost:7796
 ```
@@ -144,7 +147,9 @@ bash scripts/restart_stats.sh [--config PATH] [--workdir PATH]
 
 ### `add_to_systemd.sh`
 
-Generates and installs a `systemd` unit file for the Statistics API and UI as user services.
+Generates and installs a `systemd` unit file for the statistics API and UI as user services.
+This script still targets the compatibility `deploy.statistics.api` launcher; new
+installations should prefer `services.deploy_statistics.api`.
 
 **Usage:**
 
@@ -169,7 +174,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 -m deploy.statistics.api --config /path/to/config.toml
+ExecStart=/usr/bin/python3 -m services.deploy_statistics.api --config /path/to/config.toml
 WorkingDirectory=/path/to/repo
 Restart=on-failure
 RestartSec=5

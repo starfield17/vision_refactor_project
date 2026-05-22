@@ -13,7 +13,10 @@ import train.cli
 class CliJsonSummaryTests(unittest.TestCase):
     def test_train_cli_config_only_emits_json_summary(self) -> None:
         stdout = io.StringIO()
-        with patch("train.cli.save_train_config") as save_mock, redirect_stdout(stdout):
+        with patch(
+            "train.cli.load_service_connection",
+            return_value=("http://service", ""),
+        ), patch("train.cli.patch_config", return_value={"ok": True}) as patch_mock, redirect_stdout(stdout):
             rc = train.cli.main(
                 [
                     "--config",
@@ -27,16 +30,18 @@ class CliJsonSummaryTests(unittest.TestCase):
             )
 
         self.assertEqual(rc, 0)
-        save_mock.assert_called_once()
+        patch_mock.assert_called_once()
         payload = json.loads(stdout.getvalue().strip().splitlines()[-1])
         self.assertEqual(payload["status"], "ok")
         self.assertTrue(payload["config_only"])
 
     def test_train_cli_run_emits_json_summary(self) -> None:
         stdout = io.StringIO()
-        with patch(
-            "train.cli.run_train",
-            return_value={
+        job = {
+            "job_id": "job-001",
+            "status": "succeeded",
+            "error": "",
+            "result": {
                 "status": "ok",
                 "error": None,
                 "run_id": "exp-001",
@@ -47,7 +52,13 @@ class CliJsonSummaryTests(unittest.TestCase):
                 "artifacts": {"ok": True},
                 "log_path": "/tmp/log.txt",
             },
-        ) as run_mock, redirect_stdout(stdout):
+        }
+        with patch(
+            "train.cli.load_service_connection",
+            return_value=("http://service", ""),
+        ), patch("train.cli.submit_job", return_value={"job_id": "job-001"}) as submit_mock, patch(
+            "train.cli.wait_for_job", return_value=job
+        ), redirect_stdout(stdout):
             rc = train.cli.main(
                 [
                     "--config",
@@ -59,7 +70,7 @@ class CliJsonSummaryTests(unittest.TestCase):
             )
 
         self.assertEqual(rc, 0)
-        run_mock.assert_called_once()
+        submit_mock.assert_called_once()
         payload = json.loads(stdout.getvalue().strip().splitlines()[-1])
         self.assertEqual(payload["run_id"], "exp-001")
         self.assertEqual(payload["status"], "ok")
@@ -67,9 +78,11 @@ class CliJsonSummaryTests(unittest.TestCase):
     def test_autolabel_cli_failed_run_emits_json_summary_and_error(self) -> None:
         stdout = io.StringIO()
         stderr = io.StringIO()
-        with patch(
-            "autolabel.cli.run_autolabel",
-            return_value={
+        job = {
+            "job_id": "job-002",
+            "status": "failed",
+            "error": "boom",
+            "result": {
                 "status": "failed",
                 "error": "boom",
                 "run_id": "auto-001",
@@ -80,6 +93,12 @@ class CliJsonSummaryTests(unittest.TestCase):
                 "artifacts": {},
                 "log_path": "/tmp/log.txt",
             },
+        }
+        with patch(
+            "autolabel.cli.load_service_connection",
+            return_value=("http://service", ""),
+        ), patch("autolabel.cli.submit_job", return_value={"job_id": "job-002"}), patch(
+            "autolabel.cli.wait_for_job", return_value=job
         ), redirect_stdout(stdout), redirect_stderr(stderr):
             rc = autolabel.cli.main(
                 [

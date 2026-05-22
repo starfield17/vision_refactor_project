@@ -85,6 +85,5 @@ Core pipeline implementations.  See `share/kernel/README.md` for full details.
 - `share/` sub-packages may import from each other freely.
 - `share/` must **not** import from `train/`, `autolabel/`, or `deploy/`.
 - All third-party imports inside `share/kernel/` that are optional (e.g., `cv2`, `torch`,
-  `ultralytics`, `fastapi`, `streamlit`) are guarded with `try/except` and raise
+  `ultralytics`, `fastapi`) are guarded with `try/except` and raise
   `ConfigError` or `DataValidationError` with a clear message if the dependency is missing.
-

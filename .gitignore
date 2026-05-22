@@ -35,3 +35,7 @@ work-dir/config.resolved.toml
 # Optional local env
 .env
 .env.*
+
+# Frontend dependencies/build output
+web/**/node_modules/
+web/**/dist/

@@ -29,31 +29,43 @@ For user-facing usage instructions, see `README.md`.
 ## Architecture Overview
 
 ```
-┌──────────┐  ┌───────────┐  ┌─────────────────────┐  ┌────────────────────┐
-│  train/  │  │autolabel/ │  │    deploy/edge/      │  │  deploy/remote/    │
-│  cli.py  │  │  cli.py   │  │      cli.py          │  │     cli.py         │
-└────┬─────┘  └─────┬─────┘  └──────────┬───────────┘  └────────┬───────────┘
-     │               │                   │                        │
-     └───────────────┴───────────────────┴────────────────────────┘
-                                   │  all import from
-                             ┌─────▼──────┐
-                             │  share/    │
-                             │  kernel/   │  ← all pipeline logic lives here
-                             │  config/   │  ← TOML load/validate/resolve
-                             │  types/    │  ← typed data contracts
-                             └────────────┘
-                                   │
-                              work-dir/      ← runtime data (never committed)
-                              scripts/       ← shell operations tools
+┌──────────┐  ┌───────────┐  ┌──────────────┐  ┌─────────────┐
+│ CLI      │  │ React web │  │ PySide6 GUI  │  │ scripts/    │
+└────┬─────┘  └─────┬─────┘  └──────┬───────┘  └──────┬──────┘
+     │ HTTP API      │ HTTP API      │ HTTP API         │ process control
+     └───────────────┴───────────────┴──────────────────┘
+                         │
+      ┌──────────────────┴──────────────────┐
+      │                                     │
+┌─────▼────────────────┐          ┌─────────▼──────────────┐
+│ services.train_      │          │ services.deploy_        │
+│ autolabel.api        │          │ statistics.api           │
+│ train/autolabel jobs │          │ deploy jobs + stats API  │
+└─────────┬────────────┘          └─────────┬──────────────┘
+          │                                 │
+          └──────────────┬──────────────────┘
+                         │ all pipeline logic
+                   ┌─────▼──────┐
+                   │  share/    │
+                   │  kernel/   │  ← core pipeline implementations
+                   │  config/   │  ← TOML load/validate/resolve
+                   │  types/    │  ← typed data contracts
+                   └────────────┘
+                         │
+                    work-dir/      ← runtime data (never committed)
 ```
 
-The top-level modules (`train`, `autolabel`, `deploy`) are **thin CLI wrappers**.  They:
+The top-level modules (`train`, `autolabel`, `deploy`) are API frontends. They parse
+arguments, discover service URLs/tokens from config, submit backend jobs, and poll status.
+They do not run heavy pipelines directly.
 
-1. Parse CLI arguments
-2. Call `load_config()` to get a validated, fully-resolved config dict
-3. Build a `KernelRegistry` and register concrete backend functions
-4. Instantiate `VisionKernel` and call the appropriate `run_*` method
-5. Save the resolved config snapshot and print the run summary
+The backend services own execution:
+
+- `services.train_autolabel.api` provides train/autolabel config, job, log, and cancel APIs.
+- `services.deploy_statistics.api` provides deploy edge jobs, remote frame runtime control,
+  stats ingest, and stats dashboard APIs.
+- Long-running jobs are persisted in SQLite via `share.application.job_store.JobStore`.
+- Workers run in subprocesses so native training/inference failures do not kill the daemon.
 
 All pipeline logic, model loading, inference, data I/O, and network transport live in `share/`.
 
@@ -173,6 +185,8 @@ Every field is type-checked and range-validated.  Key constraints:
 - `deploy.edge.jpeg_quality` must be in `[1, 100]`
 - `deploy.remote.listen_port` must be in `[1, 65535]`
 - `deploy.statistics.storage` must be `sqlite` (only backend currently implemented)
+- `services.*.port` must be in `[1, 65535]`
+- `services.*.job_db_path` must be non-empty
 - `class_map.names` must be non-empty, no duplicates; `id_map` must match `names` order exactly
 - LLM mode fields (`base_url`, `model`, `prompt`) must be non-empty when `mode = "llm"`
 
@@ -343,7 +357,7 @@ General checklist:
 3. **Add the backend name** to the relevant validation set in `share/config/schema.py`
    (e.g., `TRAIN_BACKENDS`).
 4. **Add config sub-section** (if needed) to `DEFAULT_CONFIG` and `validate_config()`.
-5. **Register the function** in the relevant CLI's `main()`.
+5. **Register or expose the function** in the relevant service worker/application helper.
 6. **Update `work-dir/config.example.toml`** with commented example fields.
 7. **Update READMEs** (this file and `README.md`).
 8. **Write a smoke test** (see [Testing Guidance](#testing-guidance)).
@@ -363,13 +377,14 @@ python -m py_compile share/config/config_loader.py
 find share/ -name "*.py" | xargs python -m py_compile
 
 # Run a quick dry-run train to validate your config and the pipeline
+python -m services.train_autolabel.api --config ./work-dir/config.toml
 python -m train.cli \
   --config ./work-dir/config.toml \
   --set train.dry_run=true \
   --set train.epochs=1
 
-# Verify statistics API starts cleanly
-python -m deploy.statistics.api --config ./work-dir/config.toml &
+# Verify deploy/statistics API starts cleanly
+python -m services.deploy_statistics.api --config ./work-dir/config.toml &
 curl http://localhost:7797/health
 ```
 
@@ -447,4 +462,3 @@ forbidden_modules = train, autolabel, deploy
 | Remote server | No TLS support; assumes trusted internal network or a terminating proxy |
 | Rate limiter | The statistics API rate limiter is an in-memory window per source; it resets on restart |
 | LLM autolabel | Response parsing is LLM/prompt dependent; a structured output schema would improve reliability |
-
