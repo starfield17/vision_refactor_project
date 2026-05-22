@@ -14,14 +14,20 @@ This is a modular vision project with the main workflow:
 
 `Train -> AutoLabel -> Deploy (Edge / Remote) -> Statistics`
 
-All entry points are Python modules:
+Main execution entry points are service-backed CLIs and FastAPI daemons:
 
 - `python -m train.cli`
 - `python -m autolabel.cli`
 - `python -m deploy.edge.cli`
 - `python -m deploy.remote.cli`
-- `python -m deploy.statistics.api`
-- `python -m deploy.statistics.ui`
+- `python -m services.train_autolabel.api`
+- `python -m services.deploy_statistics.api`
+
+Web / desktop frontends are API clients, not pipeline owners:
+
+- Train + AutoLabel WebUI: `web/train_autolabel`, default `http://127.0.0.1:7794`
+- Deploy + Statistics WebUI: `web/deploy_statistics`, default `http://127.0.0.1:7796`
+- Train / AutoLabel PySide6 launchers call the same train/autolabel backend API
 
 Core project features:
 
@@ -30,6 +36,7 @@ Core project features:
 - Training artifacts generate `model_manifest.json`, which can automatically identify `model_id/backend` during deployment
 - Statistics uses SQLite by default
 - Structured logs in `work-dir/log.txt`
+- CLI / React / PySide6 frontends submit jobs to backend APIs instead of running long pipelines directly
 
 ---
 
@@ -60,6 +67,10 @@ When users request "help me run/configure/deploy/train/autolabel", prioritize th
    - Is Statistics started
    - Are `stats_endpoint` / `stream_endpoint` reachable
    - Does API key come from environment variables
+7. If the user's goal is using WebUI, prioritize starting the API and UI scripts:
+   - `scripts/start_train_autolabel.sh`
+   - `scripts/start_stats.sh`
+   then open the UI port, not the backend root path.
 
 **Don't do these things by default:**
 
@@ -79,13 +90,15 @@ When users request "help me run/configure/deploy/train/autolabel", prioritize th
 - Run records: `work-dir/runs/<run_id>/`
 - Statistics database: `work-dir/stats/stats.db`
 - Output images/annotated images: `work-dir/outputs/`
+- Service PID/log files: `work-dir/tmp/*.pid`, `work-dir/tmp/*.log`
+- Train + AutoLabel WebUI: `web/train_autolabel`
+- Deploy + Statistics WebUI: `web/deploy_statistics`
 
 Key items to check after training:
 
 - `model.pt`
 - `model.onnx`
-- `model-int8.onnx`
-- `model-fp16.onnx` (if fallback succeeds)
+- `model-int8.onnx` (YOLO quantized export when enabled)
 - `model_manifest.json`
 
 ---
@@ -161,17 +174,102 @@ Then in shell:
 export VISION_LLM_API_KEY='your-real-key'
 ```
 
+For persistent local runs, prefer a gitignored env file:
+
+```bash
+mkdir -p work-dir/secrets
+printf 'VISION_LLM_API_KEY=your-real-key\n' > work-dir/secrets/llm.env
+chmod 600 work-dir/secrets/llm.env
+source work-dir/secrets/llm.env
+```
+
 Explanation:
 
 - `api_key`: Allows plaintext, but not recommended
 - `api_key_env_name`: Recommended, indicates "which environment variable to read"
 - `api_key_env`: Legacy compatibility field, old tasks may still use it
+- `work-dir/secrets/llm.env`: Local runtime secret file, ignored by Git; never paste the real key into tracked docs or config
 
 ---
 
-## 5. Train Quick Operation Guide
+## 5. Backend Services and WebUI Startup
 
-## 5.1 Applicable Scenarios
+The project follows a frontend/backend split. Backends are long-running FastAPI services;
+CLI, React WebUI, and PySide6 frontends call those services over HTTP.
+
+### 5.1 Train + AutoLabel WebUI
+
+Recommended startup:
+
+```bash
+PYTHON_BIN=/home/hazel/miniconda3/envs/Lab/bin/python \
+  bash scripts/start_train_autolabel.sh --config ./work-dir/config.toml
+```
+
+Stop script-managed processes:
+
+```bash
+PYTHON_BIN=/home/hazel/miniconda3/envs/Lab/bin/python \
+  bash scripts/stop_train_autolabel.sh --config ./work-dir/config.toml
+```
+
+Default addresses:
+
+- UI: `http://127.0.0.1:7794`
+- API health: `http://127.0.0.1:7793/health`
+- API root `http://127.0.0.1:7793/` returns `404`; this is normal because the API does not serve a page.
+
+The startup script:
+
+- Starts `services.train_autolabel.api`
+- Starts Vite from `web/train_autolabel`
+- Sources `work-dir/secrets/llm.env` if it exists
+- Writes PID files under `work-dir/tmp/`
+- Reports `external` when the port is already served by a manually started process
+
+Manual fallback:
+
+```bash
+# Terminal A: backend API
+source work-dir/secrets/llm.env 2>/dev/null || true
+/home/hazel/miniconda3/envs/Lab/bin/python -m services.train_autolabel.api \
+  --config ./work-dir/config.toml
+
+# Terminal B: React WebUI
+npm --prefix web/train_autolabel run dev
+```
+
+### 5.2 Deploy + Statistics WebUI
+
+Recommended startup:
+
+```bash
+bash scripts/start_stats.sh --config ./work-dir/config.toml
+```
+
+Check status:
+
+```bash
+bash scripts/status_stats.sh --config ./work-dir/config.toml
+```
+
+Stop:
+
+```bash
+bash scripts/stop_stats.sh --config ./work-dir/config.toml
+```
+
+Default addresses:
+
+- UI: `http://127.0.0.1:7796`
+- API health: `http://127.0.0.1:7797/health`
+- API root `http://127.0.0.1:7797/` may return `404`; use `/health` or `/api/v1/...`.
+
+---
+
+## 6. Train Quick Operation Guide
+
+## 6.1 Applicable Scenarios
 
 When users say:
 
@@ -181,16 +279,17 @@ When users say:
 
 You should prioritize using `train.cli`.
 
-## 5.2 Preferred Backend
+## 6.2 Preferred Backend
 
 Priority recommendations:
 
-1. `yolo`: Most complete, supports training, ONNX, quantization, deployment
-2. `faster_rcnn`: Can train, but currently **not suitable as complete deploy main path**, because ONNX/quantization pipeline is not fully integrated
+1. `yolo`: Most complete, supports training, ONNX, dynamic INT-8 quantization, deployment
+2. `faster_rcnn`: Supports training, FP32 ONNX export, model autolabel, edge local deploy, stream deploy, and remote deploy. Quantization is intentionally skipped for this backend.
 
-So if the user's goal is deployment, don't default to `faster_rcnn`.
+If the user asks for the fastest full deploy path, default to YOLO. If the user explicitly
+asks for Faster R-CNN, use the FP32 `model.onnx` artifact and do not promise quantization.
 
-## 5.3 Minimum Training Command
+## 6.3 Minimum Training Command
 
 ```bash
 python -m train.cli \
@@ -210,12 +309,26 @@ If just quickly verifying the workflow, recommend additionally using:
 --set train.dry_run=true
 ```
 
-## 5.4 Post-Training Checklist
+Faster R-CNN example:
+
+```bash
+python -m train.cli \
+  --config ./work-dir/config.toml \
+  --set workspace.run_name=my-frcnn-run \
+  --set train.backend=faster_rcnn \
+  --set train.faster_rcnn.variant=mobilenet_v3 \
+  --set train.epochs=1 \
+  --set train.batch_size=2 \
+  --set export.onnx=true
+```
+
+## 6.4 Post-Training Checklist
 
 After training completes, prioritize checking:
 
 - `work-dir/models/<run_name>/model_manifest.json`
-- `work-dir/models/<run_name>/model-int8.onnx`
+- `work-dir/models/<run_name>/model-int8.onnx` for YOLO quantized export
+- `work-dir/models/<run_name>/model.onnx` for YOLO FP32 or Faster R-CNN FP32 export
 - `work-dir/runs/<run_id>/artifacts.json`
 - `work-dir/runs/<run_id>/metrics.json`
 
@@ -229,9 +342,9 @@ Recommend using final artifacts in the directory containing `model_manifest.json
 
 ---
 
-## 6. AutoLabel Quick Operation Guide
+## 7. AutoLabel Quick Operation Guide
 
-## 6.1 Two Modes
+## 7.1 Two Modes
 
 ### Model Mode
 
@@ -241,7 +354,7 @@ Key configuration:
 
 - `autolabel.mode = "model"`
 - `autolabel.model.onnx_model`
-- `autolabel.model.backend`
+- `autolabel.model.backend = "yolo" | "faster_rcnn"`
 - `data.unlabeled_dir`
 - `data.labeled_dir`
 
@@ -255,6 +368,16 @@ python -m autolabel.cli \
   --set autolabel.model.onnx_model=./work-dir/models/my-yolo-run/model-int8.onnx \
   --set data.unlabeled_dir=../coco128/images/train2017 \
   --set data.labeled_dir=./work-dir/datasets/labeled
+```
+
+For Faster R-CNN model autolabel, use its FP32 ONNX export:
+
+```bash
+python -m autolabel.cli \
+  --config ./work-dir/config.toml \
+  --set autolabel.mode=model \
+  --set autolabel.model.backend=faster_rcnn \
+  --set autolabel.model.onnx_model=./work-dir/models/my-frcnn-run/model.onnx
 ```
 
 ### LLM Mode
@@ -279,7 +402,7 @@ python -m autolabel.cli \
   --set autolabel.llm.max_images=5
 ```
 
-## 6.2 Conflict Strategy
+## 7.2 Conflict Strategy
 
 Focus on: `autolabel.on_conflict`
 
@@ -294,11 +417,11 @@ If user has no special requirements, prioritize recommending:
 
 ---
 
-## 7. Statistics Quick Operation Guide
+## 8. Statistics Quick Operation Guide
 
 If the user's goal is deploy, typically should start Statistics first.
 
-## 7.1 Recommended Startup Method
+## 8.1 Recommended Startup Method
 
 Prioritize using script:
 
@@ -309,16 +432,16 @@ bash scripts/start_stats.sh --config ./work-dir/config.toml
 Check status:
 
 ```bash
-bash scripts/status_stats.sh --workdir ./work-dir
+bash scripts/status_stats.sh --config ./work-dir/config.toml
 ```
 
 Stop:
 
 ```bash
-bash scripts/stop_stats.sh --workdir ./work-dir
+bash scripts/stop_stats.sh --config ./work-dir/config.toml
 ```
 
-## 7.2 Access Addresses
+## 8.2 Access Addresses
 
 Default:
 
@@ -332,11 +455,11 @@ If user modified ports, refer to `work-dir/config.toml`:
 
 ---
 
-## 8. Deploy Quick Operation Guide
+## 9. Deploy Quick Operation Guide
 
-## 8.1 Edge Local
+## 9.1 Edge Local
 
-Suitable for: Run ONNX inference directly on local machine, then push statistics to Statistics.
+Suitable for: Run backend-aware inference directly on local machine, then push statistics to Statistics.
 
 Key configuration:
 
@@ -357,7 +480,18 @@ python -m deploy.edge.cli \
   --set deploy.edge.max_frames=1
 ```
 
-## 8.2 Edge Stream + Remote
+For Faster R-CNN deployment, use its FP32 ONNX artifact:
+
+```bash
+python -m deploy.edge.cli \
+  --config ./work-dir/config.toml \
+  --set deploy.edge.mode=local \
+  --set deploy.edge.source=images \
+  --set deploy.edge.local_model=./work-dir/models/my-frcnn-run/model.onnx \
+  --set deploy.edge.max_frames=1
+```
+
+## 9.2 Edge Stream + Remote
 
 Suitable for: Edge sends images, remote performs unified inference.
 
@@ -368,6 +502,8 @@ python -m deploy.remote.cli \
   --config ./work-dir/config.toml \
   --set deploy.remote.model=./work-dir/models/my-yolo-run/model.onnx
 ```
+
+For Faster R-CNN, use `./work-dir/models/my-frcnn-run/model.onnx`.
 
 ### Then Start Edge Stream
 
@@ -397,7 +533,7 @@ So if users want to troubleshoot "which model is actually working", prioritize c
 - `work-dir/models/<run_name>/model_manifest.json`
 - `work-dir/runs/<run_id>/stats.jsonl`
 
-## 8.3 Edge LLM
+## 9.3 Edge LLM
 
 Suitable for: Edge device directly calls vision LLM for inference.
 
@@ -423,9 +559,9 @@ All configured.
 
 ---
 
-## 9. Agent Most Common Task Templates
+## 10. Agent Most Common Task Templates
 
-## 9.1 "Help me quickly run local deployment"
+## 10.1 "Help me quickly run local deployment"
 
 Recommended workflow:
 
@@ -438,16 +574,16 @@ Recommended workflow:
    - `work-dir/runs/<run_id>/artifacts.json`
    - Statistics UI
 
-## 9.2 "Help me connect this model to autolabel"
+## 10.2 "Help me connect this model to autolabel"
 
 Recommended workflow:
 
 1. Find `model_manifest.json` in model directory
-2. Prioritize choosing `final_infer_model_path` or `model-int8.onnx`
+2. Prioritize choosing `final_infer_model_path`; for YOLO this is often `model-int8.onnx`, for Faster R-CNN it is `model.onnx`
 3. Write path to `autolabel.model.onnx_model`
 4. Run with `autolabel.mode=model` on small sample for verification
 
-## 9.3 "Help me do remote inference deployment"
+## 10.3 "Help me do remote inference deployment"
 
 Recommended workflow:
 
@@ -459,9 +595,9 @@ Recommended workflow:
 
 ---
 
-## 10. Common Troubleshooting Rules
+## 11. Common Troubleshooting Rules
 
-## 10.1 Configuration Errors
+## 11.1 Configuration Errors
 
 Prioritize checking:
 
@@ -476,7 +612,7 @@ Common causes:
 - Wrong `data.yolo_dataset_dir`
 - LLM missing `api_key_env_name`
 
-## 10.2 Deploy Has No Results
+## 11.2 Deploy Has No Results
 
 Prioritize checking:
 
@@ -485,7 +621,7 @@ Prioritize checking:
 - Is `deploy.edge.confidence` too high
 - Are Remote/Statistics started
 
-## 10.3 Statistics Shows No Data
+## 11.3 Statistics Shows No Data
 
 Prioritize checking:
 
@@ -494,7 +630,7 @@ Prioritize checking:
 - `scripts/status_stats.sh`
 - `work-dir/stats/stats.db`
 
-## 10.4 LLM Call Failure
+## 11.4 LLM Call Failure
 
 Prioritize checking:
 
@@ -505,18 +641,20 @@ Prioritize checking:
 
 ---
 
-## 11. Project Facts You Should Not Misjudge
+## 12. Project Facts You Should Not Misjudge
 
-- **The main operation entry point of this project is not Web, but CLI.** Web is only auxiliary.
+- **The main pipeline owner is the backend service layer.** CLI, React WebUI, and PySide6 are API clients.
 - **Configuration source is `work-dir/config.toml`.** Don't hardcode parameters everywhere.
-- **If user's goal is deploy, prioritize recommending YOLO, not Faster R-CNN.**
+- **If user's goal is the fastest deploy path, prioritize recommending YOLO.** Faster R-CNN is supported for FP32 ONNX deploy but not quantized deploy.
+- **Train + AutoLabel UI and API are two processes.** UI 7794, API 7793 (default).
 - **Statistics UI and API are two processes.** UI 7796, API 7797 (default).
+- **Backend API root path may return 404.** Use `/health` for health checks and UI ports for browser pages.
 - **Model directory after training now contains `model_manifest.json`.** Prioritize using it to identify model identity.
 - **LLM key recommended via environment variable name.** Don't encourage writing real keys into repository configuration.
 
 ---
 
-## 12. Recommended Response Style
+## 13. Recommended Response Style
 
 When users ask "how to run", your response should prioritize including:
 
@@ -533,7 +671,7 @@ Concise example:
 
 ---
 
-## 13. If User Wants to "Quickly Complete Task", Your Priority Order
+## 14. If User Wants to "Quickly Complete Task", Your Priority Order
 
 Priority from high to low:
 
