@@ -63,11 +63,13 @@ def build_train_registry() -> KernelRegistry:
 
 def build_autolabel_registry() -> KernelRegistry:
     from share.kernel.autolabel.llm_autolabel import run_llm_autolabel
+    from share.kernel.autolabel.locate_anything_autolabel import run_locate_anything_autolabel
     from share.kernel.autolabel.model_autolabel import run_model_autolabel
 
     registry = KernelRegistry()
     registry.register_autolabeler("model", run_model_autolabel)
     registry.register_autolabeler("llm", run_llm_autolabel)
+    registry.register_autolabeler("locate_anything", run_locate_anything_autolabel)
     return registry
 
 

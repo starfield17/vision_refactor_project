@@ -10,6 +10,7 @@ from share.application.common import create_logger, normalize_run_result
 from share.config.config_loader import load_config, save_resolved_config
 from share.kernel.deploy.edge_llm import run_edge_llm_deploy
 from share.kernel.deploy.edge_local import run_edge_local_deploy
+from share.kernel.deploy.edge_locate_anything import run_edge_locate_anything_deploy
 from share.kernel.deploy.edge_stream import run_edge_stream_deploy
 from share.kernel.kernel import VisionKernel
 from share.kernel.registry import KernelRegistry
@@ -44,6 +45,7 @@ def run_deploy_edge(
     registry.register_deployer("local", run_edge_local_deploy)
     registry.register_deployer("llm", run_edge_llm_deploy)
     registry.register_deployer("stream", run_edge_stream_deploy)
+    registry.register_deployer("locate_anything", run_edge_locate_anything_deploy)
 
     kernel = VisionKernel(cfg=cfg, logger=logger, registry=registry)
     result = kernel.run_deploy_edge()

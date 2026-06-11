@@ -6,9 +6,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from share.kernel.infer.faster_rcnn import LocalFasterRCNNInferencer
-from share.kernel.infer.faster_rcnn_onnx import LocalFasterRCNNOnnxInferencer
-from share.kernel.infer.local_yolo import LocalYoloInferencer
 from share.kernel.model_manifest import resolve_model_identity
 from share.types.errors import DataValidationError
 
@@ -37,6 +34,8 @@ def create_frame_inferencer(
     device = str(cfg["train"]["device"])
 
     if backend == "yolo":
+        from share.kernel.infer.local_yolo import LocalYoloInferencer
+
         inferencer = LocalYoloInferencer(
             model_path=model_path,
             class_names=class_names,
@@ -48,6 +47,8 @@ def create_frame_inferencer(
 
     if backend == "faster_rcnn":
         if model_path.suffix.lower() == ".onnx":
+            from share.kernel.infer.faster_rcnn_onnx import LocalFasterRCNNOnnxInferencer
+
             inferencer = LocalFasterRCNNOnnxInferencer(
                 model_path=model_path,
                 class_names=class_names,
@@ -55,6 +56,8 @@ def create_frame_inferencer(
                 device=device,
             )
         else:
+            from share.kernel.infer.faster_rcnn import LocalFasterRCNNInferencer
+
             inferencer = LocalFasterRCNNInferencer(
                 model_path=model_path,
                 class_names=class_names,

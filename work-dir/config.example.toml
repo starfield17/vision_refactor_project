@@ -67,6 +67,21 @@ max_images = 0
 onnx_model = "./work-dir/models/exp001/model-int8.onnx"
 backend = "yolo"
 
+[locate_anything]
+# Use autolabel.mode="locate_anything" or deploy.edge.mode="locate_anything".
+# The model value can be a Hugging Face id or a local cached model directory.
+model = "nvidia/LocateAnything-3B"
+device = "auto"
+dtype = "auto"
+generation_mode = "hybrid"  # "fast" | "slow" | "hybrid"
+max_new_tokens = 8192
+temperature = 0.0
+prompt_template = "Locate all the instances that match the following description: {class_name}."
+nms_iou = 0.65
+default_score = 1.0
+verbose = false
+max_images = 0
+
 [deploy.edge]
 source_id = "edge-001"
 mode = "local"

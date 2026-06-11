@@ -4,3 +4,8 @@ uvicorn>=0.30.0
 ultralytics>=8.4.0
 onnxruntime>=1.18.0
 numpy
+transformers>=4.57.1
+Pillow>=11.1.0
+peft
+decord>=0.6.0
+lmdb>=1.7.5

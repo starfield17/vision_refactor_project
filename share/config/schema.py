@@ -10,14 +10,15 @@ from share.types.errors import ConfigError
 
 LOG_LEVELS = {"DEBUG", "INFO", "WARN", "ERROR"}
 TRAIN_BACKENDS = {"yolo", "faster_rcnn"}
-AUTOLABEL_MODES = {"llm", "model"}
+AUTOLABEL_MODES = {"llm", "model", "locate_anything"}
 QUANTIZE_MODES = {"dynamic"}
 AUTOLABEL_CONFLICTS = {"skip", "overwrite", "merge"}
 AUTOLABEL_MODEL_BACKENDS = {"yolo", "faster_rcnn"}
 FASTER_RCNN_VARIANTS = {"resnet50_fpn", "resnet50_fpn_v2", "mobilenet_v3", "resnet18_fpn"}
-EDGE_MODES = {"local", "llm", "stream"}
+EDGE_MODES = {"local", "llm", "stream", "locate_anything"}
 EDGE_SOURCES = {"camera", "video", "images"}
 STATISTICS_STORAGES = {"sqlite"}
+LOCATE_ANYTHING_GENERATION_MODES = {"fast", "slow", "hybrid"}
 
 
 DEFAULT_CONFIG: dict[str, Any] = {
@@ -82,6 +83,19 @@ DEFAULT_CONFIG: dict[str, Any] = {
             "max_images": 0,
         },
         "model": {"onnx_model": "", "backend": "yolo"},
+    },
+    "locate_anything": {
+        "model": "nvidia/LocateAnything-3B",
+        "device": "auto",
+        "dtype": "auto",
+        "generation_mode": "hybrid",
+        "max_new_tokens": 8192,
+        "temperature": 0.0,
+        "prompt_template": "Locate all the instances that match the following description: {class_name}.",
+        "nms_iou": 0.65,
+        "default_score": 1.0,
+        "verbose": False,
+        "max_images": 0,
     },
     "deploy": {
         "edge": {
@@ -337,6 +351,33 @@ def validate_config(cfg: dict[str, Any]) -> dict[str, Any]:
             raise ConfigError(
                 "autolabel.llm requires api_key, api_key_env_name, or legacy api_key_env in llm mode"
             )
+
+    locate_cfg = _expect_type(cfg, "locate_anything", dict, "root")
+    _expect_type(locate_cfg, "model", str, "locate_anything")
+    _expect_type(locate_cfg, "device", str, "locate_anything")
+    _expect_type(locate_cfg, "dtype", str, "locate_anything")
+    generation_mode = _expect_type(locate_cfg, "generation_mode", str, "locate_anything")
+    if generation_mode not in LOCATE_ANYTHING_GENERATION_MODES:
+        raise ConfigError(
+            f"locate_anything.generation_mode must be one of {sorted(LOCATE_ANYTHING_GENERATION_MODES)}"
+        )
+    max_new_tokens = _expect_type(locate_cfg, "max_new_tokens", int, "locate_anything")
+    if max_new_tokens <= 0:
+        raise ConfigError("locate_anything.max_new_tokens must be > 0")
+    _expect_type(locate_cfg, "temperature", (int, float), "locate_anything")
+    prompt_template = _expect_type(locate_cfg, "prompt_template", str, "locate_anything")
+    if "{class_name}" not in prompt_template:
+        raise ConfigError("locate_anything.prompt_template must include {class_name}")
+    nms_iou = _expect_type(locate_cfg, "nms_iou", (int, float), "locate_anything")
+    if not (0.0 <= float(nms_iou) <= 1.0):
+        raise ConfigError("locate_anything.nms_iou must be in [0, 1]")
+    default_score = _expect_type(locate_cfg, "default_score", (int, float), "locate_anything")
+    if not (0.0 <= float(default_score) <= 1.0):
+        raise ConfigError("locate_anything.default_score must be in [0, 1]")
+    _expect_type(locate_cfg, "verbose", bool, "locate_anything")
+    max_images_la = _expect_type(locate_cfg, "max_images", int, "locate_anything")
+    if max_images_la < 0:
+        raise ConfigError("locate_anything.max_images must be >= 0")
 
     deploy_cfg = _expect_type(cfg, "deploy", dict, "root")
 
