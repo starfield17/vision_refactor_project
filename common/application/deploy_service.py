@@ -71,7 +71,9 @@ def build_edge_overrides_from_payload(payload: dict[str, Any]) -> list[str]:
         "verbose",
         "max_images",
     ):
-        append_override(overrides, f"locate_anything.{field}", payload.get(f"locate_anything_{field}"))
+        append_override(
+            overrides, f"locate_anything.{field}", payload.get(f"locate_anything_{field}")
+        )
     for key, value in payload.items():
         if value is None or key in {"overrides", "config_path", "workdir_override"}:
             continue
@@ -93,7 +95,9 @@ def run_deploy_edge(
         workdir_override=workdir_override,
     )
     logger = create_logger(cfg)
-    logger.info("deploy.edge.service.start", "Deploy edge run started", config_path=str(config_file))
+    logger.info(
+        "deploy.edge.service.start", "Deploy edge run started", config_path=str(config_file)
+    )
 
     registry = KernelRegistry()
     registry.register_deployer("local", run_edge_local_deploy)

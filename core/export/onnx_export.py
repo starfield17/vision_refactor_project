@@ -58,7 +58,9 @@ def export_yolo_to_onnx(
         if exported.resolve() != output_onnx_path.resolve():
             shutil.copyfile(exported, output_onnx_path)
         messages.append(f"onnx export succeeded: {output_onnx_path}")
-        logger.info("train.export.onnx.ok", "ONNX export succeeded", onnx_path=str(output_onnx_path))
+        logger.info(
+            "train.export.onnx.ok", "ONNX export succeeded", onnx_path=str(output_onnx_path)
+        )
         return True, str(output_onnx_path), messages
     except Exception as exc:
         msg = f"onnx export failed: {exc}"
@@ -84,9 +86,7 @@ def quantize_with_fallback(
     fp16_path = model_dir / "model-fp16.onnx"
 
     if quantize_mode != "dynamic":
-        messages.append(
-            f"quantize_mode={quantize_mode} is not implemented, expected dynamic"
-        )
+        messages.append(f"quantize_mode={quantize_mode} is not implemented, expected dynamic")
         logger.warn(
             "train.export.quant.mode.unsupported",
             "Unsupported quantize_mode for current implementation",
@@ -103,7 +103,9 @@ def quantize_with_fallback(
             model_output=str(int8_path),
             weight_type=QuantType.QUInt8,
         )
-        logger.info("train.export.quant.ok", "ONNX dynamic quantization succeeded", int8_path=str(int8_path))
+        logger.info(
+            "train.export.quant.ok", "ONNX dynamic quantization succeeded", int8_path=str(int8_path)
+        )
         messages.append(f"int8 quantization succeeded: {int8_path}")
         return True, str(int8_path), None, "onnxruntime-dynamic", messages
     except Exception as exc:

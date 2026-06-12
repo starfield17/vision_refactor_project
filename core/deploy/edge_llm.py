@@ -249,7 +249,9 @@ def run_edge_llm_deploy(cfg: dict[str, Any], run_ctx: dict[str, Any]) -> dict[st
                     error=str(exc),
                 )
 
-        if save_annotated and _save_annotated(packet.frame_bgr, detections, output_dir / packet.frame_name):
+        if save_annotated and _save_annotated(
+            packet.frame_bgr, detections, output_dir / packet.frame_name
+        ):
             annotated_saved += 1
 
         detections_total += len(detections)

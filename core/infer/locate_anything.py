@@ -38,7 +38,9 @@ def _clip_box(box: list[float], width: int, height: int) -> list[float] | None:
     return [x1, y1, x2, y2]
 
 
-def parse_locate_anything_boxes(answer: str, image_width: int, image_height: int) -> list[list[float]]:
+def parse_locate_anything_boxes(
+    answer: str, image_width: int, image_height: int
+) -> list[list[float]]:
     """Parse LocateAnything ``<box>`` output into pixel-coordinate xyxy boxes.
 
     The official worker emits quantized integer coordinates in [0, 1000].  A looser
@@ -113,7 +115,9 @@ class LocateAnythingResult:
         try:
             import cv2
         except Exception as exc:
-            raise DataValidationError(f"opencv is required to plot LocateAnything result: {exc}") from exc
+            raise DataValidationError(
+                f"opencv is required to plot LocateAnything result: {exc}"
+            ) from exc
 
         annotated = self.frame_bgr.copy()
         for det in self.detections:
@@ -160,7 +164,9 @@ class LocateAnythingInferencer:
         if not model:
             raise DataValidationError("locate_anything.model must not be empty")
         if generation_mode not in {"fast", "slow", "hybrid"}:
-            raise DataValidationError("locate_anything.generation_mode must be fast, slow, or hybrid")
+            raise DataValidationError(
+                "locate_anything.generation_mode must be fast, slow, or hybrid"
+            )
         if "{class_name}" not in prompt_template:
             raise DataValidationError("locate_anything.prompt_template must include {class_name}")
         if quantization not in {"none", "bnb_4bit"}:
@@ -203,7 +209,9 @@ class LocateAnythingInferencer:
                 "bf16": torch.bfloat16,
             }.get(dtype.lower())
             if torch_dtype is None:
-                raise DataValidationError("locate_anything.dtype must be auto, float32, float16, or bfloat16")
+                raise DataValidationError(
+                    "locate_anything.dtype must be auto, float32, float16, or bfloat16"
+                )
 
         self.torch = torch
         self.dtype = torch_dtype
@@ -336,7 +344,9 @@ class LocateAnythingInferencer:
             import cv2
             from PIL import Image
         except Exception as exc:
-            raise DataValidationError(f"Pillow and opencv are required for LocateAnything infer: {exc}") from exc
+            raise DataValidationError(
+                f"Pillow and opencv are required for LocateAnything infer: {exc}"
+            ) from exc
 
         if frame_bgr is None or not hasattr(frame_bgr, "shape") or len(frame_bgr.shape) < 2:
             raise DataValidationError("invalid frame payload for LocateAnything infer")
@@ -378,7 +388,9 @@ class LocateAnythingInferencer:
         try:
             import cv2
         except Exception as exc:
-            raise DataValidationError(f"opencv is required for LocateAnything image infer: {exc}") from exc
+            raise DataValidationError(
+                f"opencv is required for LocateAnything image infer: {exc}"
+            ) from exc
 
         frame_bgr = cv2.imread(str(image_path))
         if frame_bgr is None:

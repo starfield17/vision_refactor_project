@@ -72,7 +72,11 @@ def require_api_key_or_bearer(
     if not expected_token:
         return None
     expected_bearer = f"Bearer {expected_token}"
-    if x_api_key == expected_token or authorization == expected_token or authorization == expected_bearer:
+    if (
+        x_api_key == expected_token
+        or authorization == expected_token
+        or authorization == expected_bearer
+    ):
         return None
     return json_response({"ok": False, "error": "unauthorized"}, status_code=401)
 

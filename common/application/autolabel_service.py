@@ -66,7 +66,9 @@ def build_autolabel_overrides_from_payload(payload: dict[str, Any]) -> list[str]
     append_override(overrides, "locate_anything.model", payload.get("locate_anything_model"))
     append_override(overrides, "locate_anything.device", payload.get("locate_anything_device"))
     append_override(overrides, "locate_anything.dtype", payload.get("locate_anything_dtype"))
-    append_override(overrides, "locate_anything.quantization", payload.get("locate_anything_quantization"))
+    append_override(
+        overrides, "locate_anything.quantization", payload.get("locate_anything_quantization")
+    )
     append_override(
         overrides,
         "locate_anything.bnb_4bit_compute_dtype",
@@ -82,7 +84,9 @@ def build_autolabel_overrides_from_payload(payload: dict[str, Any]) -> list[str]
         "locate_anything.bnb_4bit_use_double_quant",
         payload.get("locate_anything_bnb_4bit_use_double_quant"),
     )
-    append_override(overrides, "locate_anything.device_map", payload.get("locate_anything_device_map"))
+    append_override(
+        overrides, "locate_anything.device_map", payload.get("locate_anything_device_map")
+    )
     append_override(
         overrides,
         "locate_anything.attn_implementation",
@@ -93,13 +97,23 @@ def build_autolabel_overrides_from_payload(payload: dict[str, Any]) -> list[str]
         "locate_anything.generation_mode",
         payload.get("locate_anything_generation_mode"),
     )
-    append_override(overrides, "locate_anything.max_new_tokens", payload.get("locate_anything_max_new_tokens"))
-    append_override(overrides, "locate_anything.temperature", payload.get("locate_anything_temperature"))
-    append_override(overrides, "locate_anything.prompt_template", payload.get("locate_anything_prompt_template"))
+    append_override(
+        overrides, "locate_anything.max_new_tokens", payload.get("locate_anything_max_new_tokens")
+    )
+    append_override(
+        overrides, "locate_anything.temperature", payload.get("locate_anything_temperature")
+    )
+    append_override(
+        overrides, "locate_anything.prompt_template", payload.get("locate_anything_prompt_template")
+    )
     append_override(overrides, "locate_anything.nms_iou", payload.get("locate_anything_nms_iou"))
-    append_override(overrides, "locate_anything.default_score", payload.get("locate_anything_default_score"))
+    append_override(
+        overrides, "locate_anything.default_score", payload.get("locate_anything_default_score")
+    )
     append_override(overrides, "locate_anything.verbose", payload.get("locate_anything_verbose"))
-    append_override(overrides, "locate_anything.max_images", payload.get("locate_anything_max_images"))
+    append_override(
+        overrides, "locate_anything.max_images", payload.get("locate_anything_max_images")
+    )
     return overrides
 
 

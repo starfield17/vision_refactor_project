@@ -14,22 +14,35 @@ def _json_hash(payload: Any) -> str:
     return sha256(normalized.encode("utf-8")).hexdigest()
 
 
-def _derive_supported_modes(backend: str, final_infer_model_path: str, export_ok: bool) -> list[str]:
+def _derive_supported_modes(
+    backend: str, final_infer_model_path: str, export_ok: bool
+) -> list[str]:
     supported = ["train"]
     path = Path(final_infer_model_path) if final_infer_model_path else None
 
-    if backend in {"yolo", "faster_rcnn"} and export_ok and path is not None and path.suffix.lower() == ".onnx":
-        supported.extend(["autolabel-model", "deploy-edge-local", "deploy-edge-stream", "deploy-remote"])
+    if (
+        backend in {"yolo", "faster_rcnn"}
+        and export_ok
+        and path is not None
+        and path.suffix.lower() == ".onnx"
+    ):
+        supported.extend(
+            ["autolabel-model", "deploy-edge-local", "deploy-edge-stream", "deploy-remote"]
+        )
     return supported
 
 
-def build_train_model_manifest(cfg: dict[str, Any], run_ctx: dict[str, Any], artifacts: dict[str, Any]) -> dict[str, Any]:
+def build_train_model_manifest(
+    cfg: dict[str, Any], run_ctx: dict[str, Any], artifacts: dict[str, Any]
+) -> dict[str, Any]:
     backend = str(artifacts.get("backend") or cfg["train"]["backend"])
     weights = dict(artifacts.get("weights") or {})
     export = dict(artifacts.get("export") or {})
     class_names = list(cfg["class_map"]["names"])
     class_id_map = dict(cfg["class_map"]["id_map"])
-    final_infer_model_path = str(export.get("final_infer_model_path") or weights.get("model_pt") or "")
+    final_infer_model_path = str(
+        export.get("final_infer_model_path") or weights.get("model_pt") or ""
+    )
     export_ok = bool(export.get("export_ok", False))
     model_id = f"{cfg['workspace']['run_name']}-{backend}"
 
@@ -40,7 +53,7 @@ def build_train_model_manifest(cfg: dict[str, Any], run_ctx: dict[str, Any], art
         "run_name": str(cfg["workspace"]["run_name"]),
         "run_id": str(run_ctx["run_id"]),
         "created_at_utc": datetime.now(tz=timezone.utc).isoformat(),
-        "input_shape": {"img_size": int(cfg["train"]["img_size"])} ,
+        "input_shape": {"img_size": int(cfg["train"]["img_size"])},
         "class_map": {
             "names": class_names,
             "id_map": class_id_map,

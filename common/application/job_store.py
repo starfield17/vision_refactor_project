@@ -75,9 +75,7 @@ class JobStore:
             )
             conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_kind ON jobs(kind)")
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON jobs(created_at_utc)"
-            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON jobs(created_at_utc)")
 
     def mark_interrupted_running_jobs(self) -> int:
         now = utc_now()

@@ -18,7 +18,9 @@ IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 def _list_images(images_dir: Path, max_images: int = 0) -> list[Path]:
     if not images_dir.exists():
         raise DataValidationError(f"unlabeled images directory not found: {images_dir}")
-    images = sorted(p for p in images_dir.rglob("*") if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS)
+    images = sorted(
+        p for p in images_dir.rglob("*") if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS
+    )
     if max_images > 0:
         images = images[:max_images]
     if not images:
@@ -131,7 +133,9 @@ def run_locate_anything_autolabel(cfg: dict[str, Any], run_ctx: dict[str, Any]) 
         elif action == "merged":
             merged += 1
 
-        _write_json(raw_dir / f"{stem}.json", {"image_path": str(image_path), "answers": raw_answers})
+        _write_json(
+            raw_dir / f"{stem}.json", {"image_path": str(image_path), "answers": raw_answers}
+        )
         raw_saved += 1
 
         if visualize:

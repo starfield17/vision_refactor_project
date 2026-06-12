@@ -44,10 +44,13 @@ class FasterRCNNOnnxInferTests(unittest.TestCase):
             model_path.write_text("fake", encoding="utf-8")
             frame = np.zeros((64, 64, 3), dtype=np.uint8)
 
-            with patch(
-                "onnxruntime.get_available_providers",
-                return_value=["CUDAExecutionProvider", "CPUExecutionProvider"],
-            ), patch("onnxruntime.InferenceSession", _FakeSession):
+            with (
+                patch(
+                    "onnxruntime.get_available_providers",
+                    return_value=["CUDAExecutionProvider", "CPUExecutionProvider"],
+                ),
+                patch("onnxruntime.InferenceSession", _FakeSession),
+            ):
                 inferencer = LocalFasterRCNNOnnxInferencer(
                     model_path=model_path,
                     class_names=["person", "car"],

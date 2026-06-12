@@ -29,7 +29,9 @@ def _run(job: dict[str, Any]) -> dict[str, Any]:
         config_path=config_path,
         workdir_override=str(workdir_override) if workdir_override is not None else None,
     )
-    role_cfg = validate_config(apply_overrides(role_cfg, [str(i) for i in payload.get("overrides", [])]))
+    role_cfg = validate_config(
+        apply_overrides(role_cfg, [str(i) for i in payload.get("overrides", [])])
+    )
     kernel_cfg = role_to_kernel_config(role_cfg, "train", "train_worker")
     temp_path = Path(kernel_cfg["workspace"]["root"]) / "tmp" / "train_worker.kernel.toml"
     from common.config.config_loader import save_resolved_config

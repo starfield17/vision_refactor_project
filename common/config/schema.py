@@ -198,9 +198,7 @@ def _validate_class_map(cfg: dict[str, Any]) -> None:
 
     expected = {name: idx for idx, name in enumerate(names)}
     if id_map != expected:
-        raise ConfigError(
-            "class_map.id_map must exactly match names order, e.g. {a:0,b:1}"
-        )
+        raise ConfigError("class_map.id_map must exactly match names order, e.g. {a:0,b:1}")
 
 
 def validate_config(cfg: dict[str, Any]) -> dict[str, Any]:
@@ -257,9 +255,7 @@ def validate_config(cfg: dict[str, Any]) -> dict[str, Any]:
         momentum = _expect_type(faster_cfg, "momentum", (int, float), "train.faster_rcnn")
         if not (0.0 <= float(momentum) <= 1.0):
             raise ConfigError("train.faster_rcnn.momentum must be in [0, 1]")
-        weight_decay = _expect_type(
-            faster_cfg, "weight_decay", (int, float), "train.faster_rcnn"
-        )
+        weight_decay = _expect_type(faster_cfg, "weight_decay", (int, float), "train.faster_rcnn")
         if float(weight_decay) < 0:
             raise ConfigError("train.faster_rcnn.weight_decay must be >= 0")
         num_workers = _expect_type(faster_cfg, "num_workers", int, "train.faster_rcnn")
@@ -333,13 +329,8 @@ def validate_config(cfg: dict[str, Any]) -> dict[str, Any]:
             raise ConfigError("autolabel.llm.base_url/model must not be empty in llm mode")
         if not autolabel_llm["prompt"]:
             raise ConfigError("autolabel.llm.prompt must not be empty in llm mode")
-        if not (
-            autolabel_llm["api_key"]
-            or autolabel_llm["api_key_env_name"]
-        ):
-            raise ConfigError(
-                "autolabel.llm requires api_key or api_key_env_name in llm mode"
-            )
+        if not (autolabel_llm["api_key"] or autolabel_llm["api_key_env_name"]):
+            raise ConfigError("autolabel.llm requires api_key or api_key_env_name in llm mode")
 
     locate_cfg = _expect_type(cfg, "locate_anything", dict, "root")
     _expect_type(locate_cfg, "model", str, "locate_anything")
@@ -456,13 +447,8 @@ def validate_config(cfg: dict[str, Any]) -> dict[str, Any]:
             raise ConfigError("deploy.edge.llm.base_url/model must not be empty in llm mode")
         if not edge_llm_cfg["prompt"]:
             raise ConfigError("deploy.edge.llm.prompt must not be empty in llm mode")
-        if not (
-            edge_llm_cfg["api_key"]
-            or edge_llm_cfg["api_key_env_name"]
-        ):
-            raise ConfigError(
-                "deploy.edge.llm requires api_key or api_key_env_name in llm mode"
-            )
+        if not (edge_llm_cfg["api_key"] or edge_llm_cfg["api_key_env_name"]):
+            raise ConfigError("deploy.edge.llm requires api_key or api_key_env_name in llm mode")
 
     remote_cfg = _expect_type(deploy_cfg, "remote", dict, "deploy")
     _expect_type(remote_cfg, "source_id", str, "deploy.remote")
@@ -494,9 +480,7 @@ def validate_config(cfg: dict[str, Any]) -> dict[str, Any]:
         raise ConfigError("deploy.statistics.api_port must be in [1, 65535]")
     storage = _expect_type(stats_cfg, "storage", str, "deploy.statistics")
     if storage not in STATISTICS_STORAGES:
-        raise ConfigError(
-            f"deploy.statistics.storage must be one of {sorted(STATISTICS_STORAGES)}"
-        )
+        raise ConfigError(f"deploy.statistics.storage must be one of {sorted(STATISTICS_STORAGES)}")
     db_path = _expect_type(stats_cfg, "db_path", str, "deploy.statistics")
     if not db_path:
         raise ConfigError("deploy.statistics.db_path must not be empty")

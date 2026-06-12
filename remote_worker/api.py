@@ -7,7 +7,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from common.application.api_common import require_bearer_token, resolve_api_token, validate_service_security
+from common.application.api_common import (
+    require_bearer_token,
+    resolve_api_token,
+    validate_service_security,
+)
 from common.config.config_loader import save_resolved_config
 from common.config.role_schema import role_to_kernel_config
 from common.application.node_registration import start_control_plane_heartbeat
@@ -60,7 +64,9 @@ def create_app(role_cfg: dict[str, Any]):
 
     @app.get("/api/v1/status")
     def status(authorization: str | None = Header(default=None)):
-        token = resolve_api_token({"api_token": role_cfg["runtime"]["ingest_api_key"], "api_token_env_name": ""})
+        token = resolve_api_token(
+            {"api_token": role_cfg["runtime"]["ingest_api_key"], "api_token_env_name": ""}
+        )
         denied = require_bearer_token(authorization, token)
         if denied:
             return denied

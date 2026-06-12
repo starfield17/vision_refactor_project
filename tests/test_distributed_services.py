@@ -77,7 +77,9 @@ class DistributedServiceApiTests(unittest.TestCase):
                     "job": {"job_id": "worker-job-1", "kind": "train", "status": "running"},
                 },
             ) as post_mock:
-                response = client.post("/api/v1/jobs", json={"kind": "train", "payload": {"dry_run": True}})
+                response = client.post(
+                    "/api/v1/jobs", json={"kind": "train", "payload": {"dry_run": True}}
+                )
 
             self.assertEqual(response.status_code, 200)
             payload = response.json()

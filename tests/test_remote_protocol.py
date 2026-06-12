@@ -66,8 +66,9 @@ class RemoteProtocolTests(unittest.TestCase):
                 def warn(self, *args, **kwargs):
                     return None
 
-            with patch("core.deploy.remote_server.decode_jpeg_base64", return_value="frame"), patch(
-                "core.deploy.remote_server.encode_jpeg_base64", return_value="encoded"
+            with (
+                patch("core.deploy.remote_server.decode_jpeg_base64", return_value="frame"),
+                patch("core.deploy.remote_server.encode_jpeg_base64", return_value="encoded"),
             ):
                 app = create_remote_app(
                     cfg=cfg,
@@ -76,7 +77,11 @@ class RemoteProtocolTests(unittest.TestCase):
                     logger=_Logger(),
                     inferencer=_FakeInferencer(),
                 )
-                endpoint = next(route.endpoint for route in app.routes if getattr(route, "path", "") == "/api/v1/frame")
+                endpoint = next(
+                    route.endpoint
+                    for route in app.routes
+                    if getattr(route, "path", "") == "/api/v1/frame"
+                )
                 payload = endpoint(
                     {
                         "schema_version": 1,

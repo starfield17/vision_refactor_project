@@ -36,5 +36,8 @@ def __getattr__(name: str):
     if name in {"ResolvedFrameInferencer", "create_frame_inferencer"}:
         from .factory import ResolvedFrameInferencer, create_frame_inferencer
 
-        return {"ResolvedFrameInferencer": ResolvedFrameInferencer, "create_frame_inferencer": create_frame_inferencer}[name]
+        return {
+            "ResolvedFrameInferencer": ResolvedFrameInferencer,
+            "create_frame_inferencer": create_frame_inferencer,
+        }[name]
     raise AttributeError(name)

@@ -25,9 +25,13 @@ def _run(job: dict[str, Any]) -> dict[str, Any]:
     payload = dict(job["payload"])
     role_cfg = load_config(
         Path(str(payload["config_path"])),
-        workdir_override=str(payload["workdir_override"]) if payload.get("workdir_override") else None,
+        workdir_override=str(payload["workdir_override"])
+        if payload.get("workdir_override")
+        else None,
     )
-    role_cfg = validate_config(apply_overrides(role_cfg, [str(i) for i in payload.get("overrides", [])]))
+    role_cfg = validate_config(
+        apply_overrides(role_cfg, [str(i) for i in payload.get("overrides", [])])
+    )
     kernel_cfg = role_to_kernel_config(role_cfg, "autolabel", "autolabel_worker")
     temp_path = Path(kernel_cfg["workspace"]["root"]) / "tmp" / "autolabel_worker.kernel.toml"
     save_resolved_config(kernel_cfg, temp_path)

@@ -157,7 +157,9 @@ def validate_train_runtime(runtime: dict[str, Any], data: dict[str, Any]) -> Non
     faster = expect_type(runtime, "faster_rcnn", dict, "runtime")
     variant = expect_type(faster, "variant", str, "runtime.faster_rcnn")
     if variant not in FASTER_RCNN_VARIANTS:
-        raise ConfigError(f"runtime.faster_rcnn.variant must be one of {sorted(FASTER_RCNN_VARIANTS)}")
+        raise ConfigError(
+            f"runtime.faster_rcnn.variant must be one of {sorted(FASTER_RCNN_VARIANTS)}"
+        )
     if float(expect_type(faster, "lr", (int, float), "runtime.faster_rcnn")) <= 0:
         raise ConfigError("runtime.faster_rcnn.lr must be > 0")
     momentum = float(expect_type(faster, "momentum", (int, float), "runtime.faster_rcnn"))
@@ -245,7 +247,9 @@ def validate_autolabel_runtime(runtime: dict[str, Any]) -> None:
     expect_type(model_cfg, "onnx_model", str, "runtime.model")
     backend = expect_type(model_cfg, "backend", str, "runtime.model")
     if backend not in AUTOLABEL_MODEL_BACKENDS:
-        raise ConfigError(f"runtime.model.backend must be one of {sorted(AUTOLABEL_MODEL_BACKENDS)}")
+        raise ConfigError(
+            f"runtime.model.backend must be one of {sorted(AUTOLABEL_MODEL_BACKENDS)}"
+        )
     if mode == "model" and not model_cfg["onnx_model"]:
         raise ConfigError("runtime.model.onnx_model must not be empty in model mode")
     llm = expect_type(runtime, "llm", dict, "runtime")

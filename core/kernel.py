@@ -33,7 +33,9 @@ class RunResult:
 
 
 class VisionKernel:
-    def __init__(self, cfg: dict[str, Any], logger: StructuredLogger, registry: KernelRegistry) -> None:
+    def __init__(
+        self, cfg: dict[str, Any], logger: StructuredLogger, registry: KernelRegistry
+    ) -> None:
         self.cfg = cfg
         self.logger = logger
         self.registry = registry

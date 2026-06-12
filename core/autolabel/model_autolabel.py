@@ -19,7 +19,9 @@ IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 def _list_images(images_dir: Path) -> list[Path]:
     if not images_dir.exists():
         raise DataValidationError(f"unlabeled images directory not found: {images_dir}")
-    images = sorted(p for p in images_dir.rglob("*") if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS)
+    images = sorted(
+        p for p in images_dir.rglob("*") if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS
+    )
     if not images:
         raise DataValidationError(f"no images found under: {images_dir}")
     return images

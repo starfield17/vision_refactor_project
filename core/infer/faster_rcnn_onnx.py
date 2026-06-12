@@ -26,7 +26,9 @@ def _resolve_ort_providers(device: str) -> list[str]:
     try:
         import onnxruntime as ort
     except Exception as exc:
-        raise DataValidationError(f"onnxruntime is required for faster_rcnn ONNX infer: {exc}") from exc
+        raise DataValidationError(
+            f"onnxruntime is required for faster_rcnn ONNX infer: {exc}"
+        ) from exc
 
     if hasattr(ort, "preload_dlls"):
         try:
@@ -61,7 +63,9 @@ class LocalFasterRCNNOnnxInferencer:
         try:
             import onnxruntime as ort
         except Exception as exc:
-            raise DataValidationError(f"onnxruntime is required for faster_rcnn ONNX infer: {exc}") from exc
+            raise DataValidationError(
+                f"onnxruntime is required for faster_rcnn ONNX infer: {exc}"
+            ) from exc
 
         self.class_names = class_names
         self.confidence = float(confidence)
@@ -78,9 +82,7 @@ class LocalFasterRCNNOnnxInferencer:
         frame_bgr: Any,
     ) -> tuple[list[Detection], Any]:
         if len(outputs) < 3:
-            raise DataValidationError(
-                f"faster_rcnn ONNX expected 3 outputs, got {len(outputs)}"
-            )
+            raise DataValidationError(f"faster_rcnn ONNX expected 3 outputs, got {len(outputs)}")
 
         boxes = np.asarray(outputs[0])
         labels = np.asarray(outputs[1])

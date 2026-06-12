@@ -7,7 +7,10 @@ import json
 import sys
 from pathlib import Path
 
-from common.application.autolabel_service import build_autolabel_overrides_from_payload, run_autolabel
+from common.application.autolabel_service import (
+    build_autolabel_overrides_from_payload,
+    run_autolabel,
+)
 from common.config.config_loader import apply_overrides, save_resolved_config
 from common.config.role_schema import role_to_kernel_config
 from common.types.errors import ConfigError

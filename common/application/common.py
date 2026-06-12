@@ -127,4 +127,3 @@ def safe_open_path(path: Path | str) -> None:
         subprocess.Popen(["open", str(target)])
         return
     subprocess.Popen(["xdg-open", str(target)])
-

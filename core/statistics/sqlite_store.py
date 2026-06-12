@@ -56,18 +56,14 @@ def init_stats_db(db_path: Path) -> None:
         for column, ddl in required_columns.items():
             if column not in existing:
                 conn.execute(f"ALTER TABLE stats_events ADD COLUMN {column} {ddl}")
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_stats_events_ts_utc ON stats_events(ts_utc)"
-        )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_stats_events_ts_utc ON stats_events(ts_utc)")
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_stats_events_source_id ON stats_events(source_id)"
         )
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_stats_events_request_id ON stats_events(request_id)"
         )
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_stats_events_run_id ON stats_events(run_id)"
-        )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_stats_events_run_id ON stats_events(run_id)")
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_stats_events_model_id ON stats_events(model_id)"
         )

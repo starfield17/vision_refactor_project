@@ -38,7 +38,9 @@ def build_train_overrides_from_payload(payload: dict[str, Any]) -> list[str]:
     append_override(overrides, "runtime.faster_rcnn.variant", payload.get("frcnn_variant"))
     append_override(overrides, "runtime.faster_rcnn.lr", payload.get("frcnn_lr"))
     append_override(overrides, "runtime.faster_rcnn.momentum", payload.get("frcnn_momentum"))
-    append_override(overrides, "runtime.faster_rcnn.weight_decay", payload.get("frcnn_weight_decay"))
+    append_override(
+        overrides, "runtime.faster_rcnn.weight_decay", payload.get("frcnn_weight_decay")
+    )
     append_override(overrides, "runtime.faster_rcnn.num_workers", payload.get("frcnn_num_workers"))
     append_override(overrides, "runtime.faster_rcnn.max_samples", payload.get("frcnn_max_samples"))
 

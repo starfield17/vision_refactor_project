@@ -85,18 +85,14 @@ keys and should not expose old package names or old service names.
 Use the configured Python environment:
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 python -m pytest -q
-PYTHONDONTWRITEBYTECODE=1 python -m compileall -q \
-  common core control_plane train_worker autolabel_worker edge_agent remote_worker stats_service
+python -m pip install -e ".[dev]"
+bash scripts/check.sh
 ```
 
-For package and frontend checks:
+To apply Ruff fixes and formatting before running the same checks:
 
 ```bash
-python -m pip wheel . --no-deps -w /tmp/vision_wheel_test
-npm --prefix control_plane/web install
-npm --prefix control_plane/web run build
-bash -n deployments/install.sh
+bash scripts/check.sh --fix
 ```
 
 The Podman Web image is defined in `control_plane/web/Containerfile` and is wired into

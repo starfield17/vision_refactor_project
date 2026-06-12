@@ -178,7 +178,9 @@ def create_app(role_cfg: dict[str, Any]):
         denied = auth(authorization)
         if denied:
             return denied
-        return json_response({"ok": False, "error": "unsupported", "detail": "stats_service has no jobs"}, 400)
+        return json_response(
+            {"ok": False, "error": "unsupported", "detail": "stats_service has no jobs"}, 400
+        )
 
     return app
 
@@ -209,7 +211,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[RUNTIME ERROR] uvicorn is required: {exc}", file=sys.stderr)
         return 3
 
-    uvicorn.run(app, host=str(cfg["server"]["host"]), port=int(cfg["server"]["port"]), log_level="info")
+    uvicorn.run(
+        app, host=str(cfg["server"]["host"]), port=int(cfg["server"]["port"]), log_level="info"
+    )
     return 0
 
 

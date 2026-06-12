@@ -73,7 +73,9 @@ def _extract_archives(raw_dir: Path) -> None:
 
 def _read_split_ids(voc_root: Path, split_name: str, limit: int) -> list[str]:
     split_path = voc_root / "ImageSets" / "Main" / f"{split_name}.txt"
-    ids = [line.strip() for line in split_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    ids = [
+        line.strip() for line in split_path.read_text(encoding="utf-8").splitlines() if line.strip()
+    ]
     if limit > 0:
         ids = ids[:limit]
     return ids
@@ -124,7 +126,9 @@ def _parse_annotation(voc_root: Path, image_id: str) -> tuple[int, int, list[dic
     return width, height, detections
 
 
-def _write_yolo_label(label_path: Path, width: int, height: int, detections: list[dict[str, object]]) -> None:
+def _write_yolo_label(
+    label_path: Path, width: int, height: int, detections: list[dict[str, object]]
+) -> None:
     lines: list[str] = []
     for det in detections:
         x1, y1, x2, y2 = [float(v) for v in det["bbox_xyxy"]]  # type: ignore[index]
@@ -169,7 +173,9 @@ def _convert_split(
             }
             label_path = labeled_dir / f"{image_id}.json"
             label_path.parent.mkdir(parents=True, exist_ok=True)
-            label_path.write_text(json.dumps(label_record, ensure_ascii=True, indent=2), encoding="utf-8")
+            label_path.write_text(
+                json.dumps(label_record, ensure_ascii=True, indent=2), encoding="utf-8"
+            )
         images_written += 1
         detections_total += len(detections)
     return {"images": images_written, "detections": detections_total}

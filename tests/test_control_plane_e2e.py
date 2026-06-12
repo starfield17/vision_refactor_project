@@ -89,7 +89,9 @@ class _ImmediateRunner:
         return self.job_store.request_cancel(job_id)
 
 
-def _role_cfg(default: dict[str, Any], root: Path, db_name: str, port: int, cp_url: str) -> dict[str, Any]:
+def _role_cfg(
+    default: dict[str, Any], root: Path, db_name: str, port: int, cp_url: str
+) -> dict[str, Any]:
     return deep_merge_dict(
         default,
         {
@@ -152,7 +154,9 @@ class ControlPlaneHttpE2ETests(unittest.TestCase):
                 "nodes": {"offline_ttl_sec": 45},
             }
             train_cfg = _role_cfg(TRAIN_DEFAULT, root, "train.db", train_port, cp_url)
-            autolabel_cfg = _role_cfg(AUTOLABEL_DEFAULT, root, "autolabel.db", autolabel_port, cp_url)
+            autolabel_cfg = _role_cfg(
+                AUTOLABEL_DEFAULT, root, "autolabel.db", autolabel_port, cp_url
+            )
             edge_cfg = _role_cfg(EDGE_DEFAULT, root, "edge.db", edge_port, cp_url)
             train_path = root / "train.toml"
             autolabel_path = root / "autolabel.toml"
@@ -160,17 +164,22 @@ class ControlPlaneHttpE2ETests(unittest.TestCase):
             for path in (train_path, autolabel_path, edge_path):
                 path.write_text("", encoding="utf-8")
 
-            with patch("train_worker.service.SubprocessJobRunner", _ImmediateRunner), patch(
-                "autolabel_worker.service.SubprocessJobRunner", _ImmediateRunner
-            ), patch("edge_agent.service.SubprocessJobRunner", _ImmediateRunner):
+            with (
+                patch("train_worker.service.SubprocessJobRunner", _ImmediateRunner),
+                patch("autolabel_worker.service.SubprocessJobRunner", _ImmediateRunner),
+                patch("edge_agent.service.SubprocessJobRunner", _ImmediateRunner),
+            ):
                 control_app = create_control_app(cp_cfg)
                 train_app = create_train_app(train_cfg, train_path)
                 autolabel_app = create_autolabel_app(autolabel_cfg, autolabel_path)
                 edge_app = create_edge_app(edge_cfg, edge_path)
 
-            with _UvicornThread(control_app, cp_port), _UvicornThread(
-                train_app, train_port
-            ), _UvicornThread(autolabel_app, autolabel_port), _UvicornThread(edge_app, edge_port):
+            with (
+                _UvicornThread(control_app, cp_port),
+                _UvicornThread(train_app, train_port),
+                _UvicornThread(autolabel_app, autolabel_port),
+                _UvicornThread(edge_app, edge_port),
+            ):
                 for base_url in (
                     f"http://127.0.0.1:{train_port}",
                     f"http://127.0.0.1:{autolabel_port}",
@@ -186,7 +195,9 @@ class ControlPlaneHttpE2ETests(unittest.TestCase):
                 )
 
                 for kind in ("train", "autolabel", "edge_run"):
-                    created = post_json(cp_url, "/api/v1/jobs", payload={"kind": kind, "payload": {}})
+                    created = post_json(
+                        cp_url, "/api/v1/jobs", payload={"kind": kind, "payload": {}}
+                    )
                     self.assertTrue(created["ok"])
                     job_id = created["job"]["job_id"]
                     refreshed = get_json(cp_url, f"/api/v1/jobs/{job_id}")["job"]

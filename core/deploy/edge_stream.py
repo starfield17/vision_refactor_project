@@ -122,7 +122,9 @@ def run_edge_stream_deploy(cfg: dict[str, Any], run_ctx: dict[str, Any]) -> dict
         metadata = response.get("metadata") if isinstance(response.get("metadata"), dict) else {}
         total_detections = int(response.get("total_detections", sum(counts_by_class.values())))
         latency_ms = float(response.get("latency_ms", 0.0))
-        request_id = str(response.get("request_id") or metadata.get("request_id") or payload["request_id"])
+        request_id = str(
+            response.get("request_id") or metadata.get("request_id") or payload["request_id"]
+        )
         backend = str(response.get("backend") or metadata.get("backend") or "remote")
         model_id = str(response.get("model_id") or metadata.get("model_id") or stream_endpoint)
         event = StatsEvent.now(

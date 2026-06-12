@@ -169,7 +169,9 @@ def create_app(cfg: dict[str, Any]):
         try:
             node = store.upsert_node(payload)
         except ValueError as exc:
-            return json_response({"ok": False, "error": "validation_failed", "detail": str(exc)}, 400)
+            return json_response(
+                {"ok": False, "error": "validation_failed", "detail": str(exc)}, 400
+            )
         return {"ok": True, "node": node}
 
     @app.get("/api/v1/models")
@@ -230,7 +232,9 @@ def create_app(cfg: dict[str, Any]):
         updated = store.update_job_status(
             job["job_id"],
             status=status,
-            result=upstream_job.get("result") if isinstance(upstream_job.get("result"), dict) else None,
+            result=upstream_job.get("result")
+            if isinstance(upstream_job.get("result"), dict)
+            else None,
             error=str(upstream_job.get("error") or ""),
             log_path=str(upstream_job.get("log_path") or ""),
             finished=status in FINAL_JOB_STATUSES,
@@ -246,7 +250,9 @@ def create_app(cfg: dict[str, Any]):
         target_role = str(payload.get("target_role") or JOB_ROLE_MAP.get(kind, ""))
         target_node_id = str(payload.get("target_node_id") or "")
         if not kind:
-            return json_response({"ok": False, "error": "validation_failed", "detail": "kind is required"}, 400)
+            return json_response(
+                {"ok": False, "error": "validation_failed", "detail": "kind is required"}, 400
+            )
         if not target_role:
             return json_response(
                 {
@@ -277,7 +283,9 @@ def create_app(cfg: dict[str, Any]):
             target_node_id=node["node_id"],
             payload=payload,
         )
-        upstream_payload = dict(payload.get("payload") if isinstance(payload.get("payload"), dict) else payload)
+        upstream_payload = dict(
+            payload.get("payload") if isinstance(payload.get("payload"), dict) else payload
+        )
         upstream_payload.pop("kind", None)
         upstream_payload.pop("target_role", None)
         upstream_payload.pop("target_node_id", None)
@@ -307,7 +315,9 @@ def create_app(cfg: dict[str, Any]):
             upstream_endpoint=node["endpoint"],
             upstream_job_id=str(upstream_job["job_id"]),
             status=str(upstream_job.get("status") or "running"),
-            result=upstream_job.get("result") if isinstance(upstream_job.get("result"), dict) else {},
+            result=upstream_job.get("result")
+            if isinstance(upstream_job.get("result"), dict)
+            else {},
             error=str(upstream_job.get("error") or ""),
             log_path=str(upstream_job.get("log_path") or ""),
         )
@@ -425,7 +435,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[RUNTIME ERROR] uvicorn is required: {exc}", file=sys.stderr)
         return 3
 
-    uvicorn.run(app, host=str(cfg["server"]["host"]), port=int(cfg["server"]["port"]), log_level="info")
+    uvicorn.run(
+        app, host=str(cfg["server"]["host"]), port=int(cfg["server"]["port"]), log_level="info"
+    )
     return 0
 
 

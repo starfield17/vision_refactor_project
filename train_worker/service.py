@@ -199,7 +199,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[RUNTIME ERROR] uvicorn is required: {exc}", file=sys.stderr)
         return 3
 
-    uvicorn.run(app, host=str(cfg["server"]["host"]), port=int(cfg["server"]["port"]), log_level="info")
+    uvicorn.run(
+        app, host=str(cfg["server"]["host"]), port=int(cfg["server"]["port"]), log_level="info"
+    )
     return 0
 
 

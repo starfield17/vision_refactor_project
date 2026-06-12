@@ -111,7 +111,9 @@ def build_class_rows(class_totals: dict[str, int]) -> list[dict[str, Any]]:
             "count": int(count),
             "share_pct": float(count) * 100.0 / total,
         }
-        for class_name, count in sorted(class_totals.items(), key=lambda item: item[1], reverse=True)
+        for class_name, count in sorted(
+            class_totals.items(), key=lambda item: item[1], reverse=True
+        )
     ]
 
 

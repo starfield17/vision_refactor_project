@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -42,7 +43,9 @@ def _list_images(images_dir: Path, max_images: int) -> list[Path]:
     if not images_dir.exists():
         raise DataValidationError(f"unlabeled images directory not found: {images_dir}")
 
-    images = sorted(p for p in images_dir.rglob("*") if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS)
+    images = sorted(
+        p for p in images_dir.rglob("*") if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS
+    )
     if max_images > 0:
         images = images[:max_images]
     if not images:
@@ -54,8 +57,8 @@ def _build_system_prompt(base_prompt: str, class_names: list[str], min_conf: flo
     names_text = ", ".join(class_names)
     guide = (
         "Return JSON only (no markdown/code fences). "
-        "Schema: {\"detections\":[{\"class_name\":\"...\",\"score\":0.0-1.0,"
-        "\"bbox_xyxy\":[x1,y1,x2,y2]}]}. "
+        'Schema: {"detections":[{"class_name":"...","score":0.0-1.0,'
+        '"bbox_xyxy":[x1,y1,x2,y2]}]}. '
         "bbox_xyxy must use pixel coordinates on the original image. "
         f"Only use classes from this list: [{names_text}]. "
         f"Do not output detections with score < {min_conf}."
@@ -290,7 +293,9 @@ def _call_llm_for_image(
     try:
         import cv2
     except Exception as exc:
-        raise DataValidationError(f"opencv is required for llm autolabel image reading: {exc}") from exc
+        raise DataValidationError(
+            f"opencv is required for llm autolabel image reading: {exc}"
+        ) from exc
 
     image = cv2.imread(str(image_path))
     if image is None:
@@ -525,7 +530,9 @@ def run_llm_autolabel(cfg: dict[str, Any], run_ctx: dict[str, Any]) -> dict[str,
         detections_total += len(label.detections)
 
         label_path = labeled_dir / f"{image_path.stem}.json"
-        resolved, action = _resolve_label_record(label_path=label_path, incoming=label, on_conflict=on_conflict)
+        resolved, action = _resolve_label_record(
+            label_path=label_path, incoming=label, on_conflict=on_conflict
+        )
         if resolved is None:
             skipped += 1
             continue
@@ -540,7 +547,9 @@ def run_llm_autolabel(cfg: dict[str, Any], run_ctx: dict[str, Any]) -> dict[str,
         elif action == "merged":
             merged += 1
 
-        if visualize and _save_visualization(image_path=image_path, label=resolved, save_path=annotated_dir / image_path.name):
+        if visualize and _save_visualization(
+            image_path=image_path, label=resolved, save_path=annotated_dir / image_path.name
+        ):
             viz_saved += 1
 
     stats = {

@@ -52,8 +52,8 @@ def build_system_prompt(base_prompt: str, class_names: list[str], min_conf: floa
     names_text = ", ".join(class_names)
     guide = (
         "Return JSON only (no markdown/code fences). "
-        "Schema: {\"detections\":[{\"class_name\":\"...\",\"score\":0.0-1.0,"
-        "\"bbox_xyxy\":[x1,y1,x2,y2]}]}. "
+        'Schema: {"detections":[{"class_name":"...","score":0.0-1.0,'
+        '"bbox_xyxy":[x1,y1,x2,y2]}]}. '
         "bbox_xyxy must use pixel coordinates on the original image. "
         f"Only use classes from this list: [{names_text}]. "
         f"Do not output detections with score < {min_conf}."
