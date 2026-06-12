@@ -66,6 +66,28 @@ def build_autolabel_overrides_from_payload(payload: dict[str, Any]) -> list[str]
     append_override(overrides, "locate_anything.model", payload.get("locate_anything_model"))
     append_override(overrides, "locate_anything.device", payload.get("locate_anything_device"))
     append_override(overrides, "locate_anything.dtype", payload.get("locate_anything_dtype"))
+    append_override(overrides, "locate_anything.quantization", payload.get("locate_anything_quantization"))
+    append_override(
+        overrides,
+        "locate_anything.bnb_4bit_compute_dtype",
+        payload.get("locate_anything_bnb_4bit_compute_dtype"),
+    )
+    append_override(
+        overrides,
+        "locate_anything.bnb_4bit_quant_type",
+        payload.get("locate_anything_bnb_4bit_quant_type"),
+    )
+    append_override(
+        overrides,
+        "locate_anything.bnb_4bit_use_double_quant",
+        payload.get("locate_anything_bnb_4bit_use_double_quant"),
+    )
+    append_override(overrides, "locate_anything.device_map", payload.get("locate_anything_device_map"))
+    append_override(
+        overrides,
+        "locate_anything.attn_implementation",
+        payload.get("locate_anything_attn_implementation"),
+    )
     append_override(
         overrides,
         "locate_anything.generation_mode",

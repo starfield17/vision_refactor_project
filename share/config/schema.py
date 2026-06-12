@@ -19,6 +19,9 @@ EDGE_MODES = {"local", "llm", "stream", "locate_anything"}
 EDGE_SOURCES = {"camera", "video", "images"}
 STATISTICS_STORAGES = {"sqlite"}
 LOCATE_ANYTHING_GENERATION_MODES = {"fast", "slow", "hybrid"}
+LOCATE_ANYTHING_QUANTIZATION_MODES = {"none", "bnb_4bit"}
+LOCATE_ANYTHING_BNB_COMPUTE_DTYPES = {"float16", "bfloat16", "float32"}
+LOCATE_ANYTHING_BNB_QUANT_TYPES = {"nf4", "fp4"}
 
 
 DEFAULT_CONFIG: dict[str, Any] = {
@@ -88,6 +91,12 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "model": "nvidia/LocateAnything-3B",
         "device": "auto",
         "dtype": "auto",
+        "quantization": "none",
+        "bnb_4bit_compute_dtype": "float16",
+        "bnb_4bit_quant_type": "nf4",
+        "bnb_4bit_use_double_quant": True,
+        "device_map": "",
+        "attn_implementation": "",
         "generation_mode": "hybrid",
         "max_new_tokens": 8192,
         "temperature": 0.0,
@@ -356,6 +365,32 @@ def validate_config(cfg: dict[str, Any]) -> dict[str, Any]:
     _expect_type(locate_cfg, "model", str, "locate_anything")
     _expect_type(locate_cfg, "device", str, "locate_anything")
     _expect_type(locate_cfg, "dtype", str, "locate_anything")
+    locate_quantization = _expect_type(locate_cfg, "quantization", str, "locate_anything")
+    if locate_quantization not in LOCATE_ANYTHING_QUANTIZATION_MODES:
+        raise ConfigError(
+            "locate_anything.quantization must be one of "
+            f"{sorted(LOCATE_ANYTHING_QUANTIZATION_MODES)}"
+        )
+    bnb_compute_dtype = _expect_type(
+        locate_cfg,
+        "bnb_4bit_compute_dtype",
+        str,
+        "locate_anything",
+    )
+    if bnb_compute_dtype not in LOCATE_ANYTHING_BNB_COMPUTE_DTYPES:
+        raise ConfigError(
+            "locate_anything.bnb_4bit_compute_dtype must be one of "
+            f"{sorted(LOCATE_ANYTHING_BNB_COMPUTE_DTYPES)}"
+        )
+    bnb_quant_type = _expect_type(locate_cfg, "bnb_4bit_quant_type", str, "locate_anything")
+    if bnb_quant_type not in LOCATE_ANYTHING_BNB_QUANT_TYPES:
+        raise ConfigError(
+            "locate_anything.bnb_4bit_quant_type must be one of "
+            f"{sorted(LOCATE_ANYTHING_BNB_QUANT_TYPES)}"
+        )
+    _expect_type(locate_cfg, "bnb_4bit_use_double_quant", bool, "locate_anything")
+    _expect_type(locate_cfg, "device_map", str, "locate_anything")
+    _expect_type(locate_cfg, "attn_implementation", str, "locate_anything")
     generation_mode = _expect_type(locate_cfg, "generation_mode", str, "locate_anything")
     if generation_mode not in LOCATE_ANYTHING_GENERATION_MODES:
         raise ConfigError(

@@ -274,6 +274,18 @@ class AutoLabelPage(QWidget):
         self.locate_anything_device.addItems(["auto", "cuda", "cuda:0", "cpu"])
         self.locate_anything_dtype = QComboBox(locate_group)
         self.locate_anything_dtype.addItems(["auto", "float16", "bfloat16", "float32"])
+        self.locate_anything_quantization = QComboBox(locate_group)
+        self.locate_anything_quantization.addItems(["none", "bnb_4bit"])
+        self.locate_anything_bnb_4bit_compute_dtype = QComboBox(locate_group)
+        self.locate_anything_bnb_4bit_compute_dtype.addItems(["float16", "bfloat16", "float32"])
+        self.locate_anything_bnb_4bit_quant_type = QComboBox(locate_group)
+        self.locate_anything_bnb_4bit_quant_type.addItems(["nf4", "fp4"])
+        self.locate_anything_bnb_4bit_use_double_quant = QCheckBox(
+            "Use Double Quant",
+            locate_group,
+        )
+        self.locate_anything_device_map = QLineEdit(locate_group)
+        self.locate_anything_attn_implementation = QLineEdit(locate_group)
         self.locate_anything_generation_mode = QComboBox(locate_group)
         self.locate_anything_generation_mode.addItems(sorted(LOCATE_ANYTHING_GENERATION_MODES))
         self.locate_anything_max_new_tokens = QSpinBox(locate_group)
@@ -298,6 +310,11 @@ class AutoLabelPage(QWidget):
         locate_form.addRow("Model", self.locate_anything_model)
         locate_form.addRow("Device", self.locate_anything_device)
         locate_form.addRow("DType", self.locate_anything_dtype)
+        locate_form.addRow("Quantization", self.locate_anything_quantization)
+        locate_form.addRow("4-bit Compute", self.locate_anything_bnb_4bit_compute_dtype)
+        locate_form.addRow("4-bit Type", self.locate_anything_bnb_4bit_quant_type)
+        locate_form.addRow("Device Map", self.locate_anything_device_map)
+        locate_form.addRow("Attention", self.locate_anything_attn_implementation)
         locate_form.addRow("Generation", self.locate_anything_generation_mode)
         locate_form.addRow("Max New Tokens", self.locate_anything_max_new_tokens)
         locate_form.addRow("Temperature", self.locate_anything_temperature)
@@ -305,6 +322,7 @@ class AutoLabelPage(QWidget):
         locate_form.addRow("Default Score", self.locate_anything_default_score)
         locate_form.addRow("Max Images", self.locate_anything_max_images)
         locate_layout.addLayout(locate_form)
+        locate_layout.addWidget(self.locate_anything_bnb_4bit_use_double_quant)
         locate_layout.addWidget(self.locate_anything_verbose)
         locate_layout.addWidget(QLabel("Prompt Template (must include {class_name})", locate_group))
         locate_layout.addWidget(self.locate_anything_prompt_template)
@@ -433,6 +451,24 @@ class AutoLabelPage(QWidget):
         self.locate_anything_dtype.setCurrentText(
             str(_cfg_get(cfg, ("locate_anything", "dtype"), "auto"))
         )
+        self.locate_anything_quantization.setCurrentText(
+            str(_cfg_get(cfg, ("locate_anything", "quantization"), "none"))
+        )
+        self.locate_anything_bnb_4bit_compute_dtype.setCurrentText(
+            str(_cfg_get(cfg, ("locate_anything", "bnb_4bit_compute_dtype"), "float16"))
+        )
+        self.locate_anything_bnb_4bit_quant_type.setCurrentText(
+            str(_cfg_get(cfg, ("locate_anything", "bnb_4bit_quant_type"), "nf4"))
+        )
+        self.locate_anything_bnb_4bit_use_double_quant.setChecked(
+            bool(_cfg_get(cfg, ("locate_anything", "bnb_4bit_use_double_quant"), True))
+        )
+        self.locate_anything_device_map.setText(
+            str(_cfg_get(cfg, ("locate_anything", "device_map"), ""))
+        )
+        self.locate_anything_attn_implementation.setText(
+            str(_cfg_get(cfg, ("locate_anything", "attn_implementation"), ""))
+        )
         self.locate_anything_generation_mode.setCurrentText(
             str(_cfg_get(cfg, ("locate_anything", "generation_mode"), "hybrid"))
         )
@@ -491,6 +527,12 @@ class AutoLabelPage(QWidget):
             "locate_anything_model": self.locate_anything_model.text().strip(),
             "locate_anything_device": self.locate_anything_device.currentText(),
             "locate_anything_dtype": self.locate_anything_dtype.currentText(),
+            "locate_anything_quantization": self.locate_anything_quantization.currentText(),
+            "locate_anything_bnb_4bit_compute_dtype": self.locate_anything_bnb_4bit_compute_dtype.currentText(),
+            "locate_anything_bnb_4bit_quant_type": self.locate_anything_bnb_4bit_quant_type.currentText(),
+            "locate_anything_bnb_4bit_use_double_quant": self.locate_anything_bnb_4bit_use_double_quant.isChecked(),
+            "locate_anything_device_map": self.locate_anything_device_map.text().strip(),
+            "locate_anything_attn_implementation": self.locate_anything_attn_implementation.text().strip(),
             "locate_anything_generation_mode": self.locate_anything_generation_mode.currentText(),
             "locate_anything_max_new_tokens": self.locate_anything_max_new_tokens.value(),
             "locate_anything_temperature": self.locate_anything_temperature.value(),

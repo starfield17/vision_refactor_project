@@ -150,6 +150,12 @@ class LocateAnythingInferencer:
         nms_iou: float = 0.65,
         default_score: float = 1.0,
         verbose: bool = False,
+        quantization: str = "none",
+        bnb_4bit_compute_dtype: str = "float16",
+        bnb_4bit_quant_type: str = "nf4",
+        bnb_4bit_use_double_quant: bool = True,
+        device_map: str = "",
+        attn_implementation: str = "",
     ) -> None:
         if not model:
             raise DataValidationError("locate_anything.model must not be empty")
@@ -157,6 +163,8 @@ class LocateAnythingInferencer:
             raise DataValidationError("locate_anything.generation_mode must be fast, slow, or hybrid")
         if "{class_name}" not in prompt_template:
             raise DataValidationError("locate_anything.prompt_template must include {class_name}")
+        if quantization not in {"none", "bnb_4bit"}:
+            raise DataValidationError("locate_anything.quantization must be none or bnb_4bit")
 
         self.model_id = model
         self.class_names = class_names
@@ -168,6 +176,7 @@ class LocateAnythingInferencer:
         self.nms_iou = float(nms_iou)
         self.default_score = max(0.0, min(1.0, float(default_score)))
         self.verbose = bool(verbose)
+        self.quantization = quantization
 
         try:
             import torch
@@ -200,11 +209,51 @@ class LocateAnythingInferencer:
         self.dtype = torch_dtype
         self.tokenizer = AutoTokenizer.from_pretrained(model, trust_remote_code=True)
         self.processor = AutoProcessor.from_pretrained(model, trust_remote_code=True)
-        self.model = AutoModel.from_pretrained(
-            model,
-            torch_dtype=torch_dtype,
-            trust_remote_code=True,
-        ).to(device).eval()
+
+        model_kwargs: dict[str, Any] = {
+            "trust_remote_code": True,
+            "torch_dtype": torch_dtype,
+        }
+        if attn_implementation:
+            model_kwargs["attn_implementation"] = attn_implementation
+
+        if quantization == "bnb_4bit":
+            try:
+                from transformers import BitsAndBytesConfig
+            except Exception as exc:
+                raise DataValidationError(
+                    "locate_anything.quantization=bnb_4bit requires bitsandbytes support in "
+                    "the installed transformers package."
+                ) from exc
+
+            compute_dtype = {
+                "float32": torch.float32,
+                "float16": torch.float16,
+                "bfloat16": torch.bfloat16,
+            }.get(bnb_4bit_compute_dtype.lower())
+            if compute_dtype is None:
+                raise DataValidationError(
+                    "locate_anything.bnb_4bit_compute_dtype must be float16, bfloat16, or float32"
+                )
+            if bnb_4bit_quant_type not in {"nf4", "fp4"}:
+                raise DataValidationError("locate_anything.bnb_4bit_quant_type must be nf4 or fp4")
+
+            model_kwargs["quantization_config"] = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_compute_dtype=compute_dtype,
+                bnb_4bit_quant_type=bnb_4bit_quant_type,
+                bnb_4bit_use_double_quant=bool(bnb_4bit_use_double_quant),
+            )
+            model_kwargs["device_map"] = device_map or "auto"
+            self.model = AutoModel.from_pretrained(model, **model_kwargs).eval()
+            self.device = str(self._model_device())
+        else:
+            if device_map:
+                model_kwargs["device_map"] = device_map
+                self.model = AutoModel.from_pretrained(model, **model_kwargs).eval()
+                self.device = str(self._model_device())
+            else:
+                self.model = AutoModel.from_pretrained(model, **model_kwargs).to(device).eval()
 
     @classmethod
     def from_config(cls, cfg: dict[str, Any], *, confidence: float) -> "LocateAnythingInferencer":
@@ -227,7 +276,19 @@ class LocateAnythingInferencer:
             nms_iou=float(la_cfg.get("nms_iou", 0.65)),
             default_score=float(la_cfg.get("default_score", 1.0)),
             verbose=bool(la_cfg.get("verbose", False)),
+            quantization=str(la_cfg.get("quantization", "none")),
+            bnb_4bit_compute_dtype=str(la_cfg.get("bnb_4bit_compute_dtype", "float16")),
+            bnb_4bit_quant_type=str(la_cfg.get("bnb_4bit_quant_type", "nf4")),
+            bnb_4bit_use_double_quant=bool(la_cfg.get("bnb_4bit_use_double_quant", True)),
+            device_map=str(la_cfg.get("device_map", "")),
+            attn_implementation=str(la_cfg.get("attn_implementation", "")),
         )
+
+    def _model_device(self) -> Any:
+        try:
+            return next(self.model.parameters()).device
+        except Exception:
+            return self.torch.device(self.device)
 
     def _predict_answer(self, image: Any, question: str) -> str:
         messages = [
@@ -245,8 +306,9 @@ class LocateAnythingInferencer:
             add_generation_prompt=True,
         )
         images, videos = self.processor.process_vision_info(messages)
+        infer_device = self._model_device()
         inputs = self.processor(text=[text], images=images, videos=videos, return_tensors="pt").to(
-            self.device
+            infer_device
         )
         pixel_values = inputs["pixel_values"].to(self.dtype)
         response = self.model.generate(

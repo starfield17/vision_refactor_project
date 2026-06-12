@@ -58,6 +58,39 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--llm-retry-backoff-sec", type=float, default=None)
     parser.add_argument("--llm-qps-limit", type=float, default=None)
     parser.add_argument("--llm-max-images", type=int, default=None)
+    parser.add_argument("--locate-anything-model", default=None)
+    parser.add_argument("--locate-anything-device", default=None)
+    parser.add_argument("--locate-anything-dtype", default=None)
+    parser.add_argument(
+        "--locate-anything-quantization",
+        choices=["none", "bnb_4bit"],
+        default=None,
+    )
+    parser.add_argument("--locate-anything-bnb-4bit-compute-dtype", default=None)
+    parser.add_argument(
+        "--locate-anything-bnb-4bit-quant-type",
+        choices=["nf4", "fp4"],
+        default=None,
+    )
+    parser.add_argument(
+        "--locate-anything-bnb-4bit-use-double-quant",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+    )
+    parser.add_argument("--locate-anything-device-map", default=None)
+    parser.add_argument("--locate-anything-attn-implementation", default=None)
+    parser.add_argument(
+        "--locate-anything-generation-mode",
+        choices=["fast", "slow", "hybrid"],
+        default=None,
+    )
+    parser.add_argument("--locate-anything-max-new-tokens", type=int, default=None)
+    parser.add_argument("--locate-anything-temperature", type=float, default=None)
+    parser.add_argument("--locate-anything-prompt-template", default=None)
+    parser.add_argument("--locate-anything-nms-iou", type=float, default=None)
+    parser.add_argument("--locate-anything-default-score", type=float, default=None)
+    parser.add_argument("--locate-anything-verbose", action=argparse.BooleanOptionalAction, default=None)
+    parser.add_argument("--locate-anything-max-images", type=int, default=None)
     return parser
 
 
@@ -84,6 +117,27 @@ def _build_payload_from_args(args: argparse.Namespace) -> dict[str, object | Non
         "llm_retry_backoff_sec": args.llm_retry_backoff_sec,
         "llm_qps_limit": args.llm_qps_limit,
         "llm_max_images": args.llm_max_images,
+        "locate_anything_model": args.locate_anything_model,
+        "locate_anything_device": args.locate_anything_device,
+        "locate_anything_dtype": args.locate_anything_dtype,
+        "locate_anything_quantization": args.locate_anything_quantization,
+        "locate_anything_bnb_4bit_compute_dtype": (
+            args.locate_anything_bnb_4bit_compute_dtype
+        ),
+        "locate_anything_bnb_4bit_quant_type": args.locate_anything_bnb_4bit_quant_type,
+        "locate_anything_bnb_4bit_use_double_quant": (
+            args.locate_anything_bnb_4bit_use_double_quant
+        ),
+        "locate_anything_device_map": args.locate_anything_device_map,
+        "locate_anything_attn_implementation": args.locate_anything_attn_implementation,
+        "locate_anything_generation_mode": args.locate_anything_generation_mode,
+        "locate_anything_max_new_tokens": args.locate_anything_max_new_tokens,
+        "locate_anything_temperature": args.locate_anything_temperature,
+        "locate_anything_prompt_template": args.locate_anything_prompt_template,
+        "locate_anything_nms_iou": args.locate_anything_nms_iou,
+        "locate_anything_default_score": args.locate_anything_default_score,
+        "locate_anything_verbose": args.locate_anything_verbose,
+        "locate_anything_max_images": args.locate_anything_max_images,
     }
 
 
