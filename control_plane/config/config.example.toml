@@ -1,0 +1,19 @@
+[workspace]
+root = "../../work-dir"
+run_name = "exp001"
+log_file = "log.txt"
+log_level = "INFO"
+
+[server]
+host = "127.0.0.1"
+port = 7800
+api_token = ""
+api_token_env_name = "VISION_CONTROL_PLANE_API_TOKEN"
+
+[storage]
+db_path = "../../work-dir/state/control_plane.db"
+artifact_root = "../../work-dir/artifacts"
+model_registry = "../../work-dir/models/registry"
+
+[nodes]
+offline_ttl_sec = 45

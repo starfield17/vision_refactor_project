@@ -4,10 +4,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from share.application.autolabel_service import build_autolabel_overrides_from_payload
-from share.application.common import normalize_run_result
-from share.application.train_service import build_train_overrides_from_payload
-from share.kernel.kernel import RunContext, RunResult
+from common.application.autolabel_service import build_autolabel_overrides_from_payload
+from common.application.common import normalize_run_result
+from common.application.train_service import build_train_overrides_from_payload
+from core.kernel import RunContext, RunResult
 
 
 class ApplicationServiceTests(unittest.TestCase):
@@ -40,8 +40,8 @@ class ApplicationServiceTests(unittest.TestCase):
 
         self.assertIn("workspace.run_name=exp42", overrides)
         self.assertIn("data.yolo_dataset_dir=/tmp/dataset", overrides)
-        self.assertIn("train.backend=faster_rcnn", overrides)
-        self.assertIn("train.faster_rcnn.lr=0.01", overrides)
+        self.assertIn("runtime.backend=faster_rcnn", overrides)
+        self.assertIn("runtime.faster_rcnn.lr=0.01", overrides)
         self.assertIn("export.quantize=false", overrides)
 
     def test_build_autolabel_overrides_from_payload(self) -> None:
@@ -71,11 +71,11 @@ class ApplicationServiceTests(unittest.TestCase):
             }
         )
 
-        self.assertIn("autolabel.mode=llm", overrides)
+        self.assertIn("runtime.mode=llm", overrides)
         self.assertIn("train.device=cuda:0", overrides)
-        self.assertIn("autolabel.visualize=true", overrides)
-        self.assertIn("autolabel.llm.base_url=https://example.test/v1", overrides)
-        self.assertIn("autolabel.llm.max_images=10", overrides)
+        self.assertIn("runtime.visualize=true", overrides)
+        self.assertIn("runtime.llm.base_url=https://example.test/v1", overrides)
+        self.assertIn("runtime.llm.max_images=10", overrides)
 
     def test_normalize_run_result_reads_run_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

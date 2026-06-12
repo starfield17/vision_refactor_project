@@ -1,0 +1,1 @@
+"""Autolabel worker config package."""

@@ -1,0 +1,1 @@
+"""Statistics service config package."""

@@ -1,2 +1,0 @@
-"""Desktop GUI package."""
-

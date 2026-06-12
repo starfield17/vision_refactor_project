@@ -1,0 +1,93 @@
+[workspace]
+root = "../../work-dir"
+run_name = "exp001"
+log_file = "log.txt"
+log_level = "INFO"
+
+[node]
+id = "autolabel-worker-001"
+role = "autolabel_worker"
+endpoint = ""
+
+[class_map]
+names = ["Kitchen_waste", "Recyclable_waste", "Hazardous_waste", "Other_waste"]
+
+[class_map.id_map]
+Kitchen_waste = 0
+Recyclable_waste = 1
+Hazardous_waste = 2
+Other_waste = 3
+
+[data]
+labeled_dir = "../../work-dir/datasets/labeled"
+unlabeled_dir = "../../work-dir/datasets/unlabeled"
+
+[train]
+device = "cpu"
+img_size = 640
+
+[train.faster_rcnn]
+variant = "mobilenet_v3"
+lr = 0.005
+momentum = 0.9
+weight_decay = 0.0005
+num_workers = 0
+max_samples = 0
+
+[runtime]
+mode = "model"
+confidence = 0.5
+batch_size = 2
+visualize = false
+on_conflict = "skip"
+
+[runtime.llm]
+base_url = ""
+model = ""
+api_key = ""
+api_key_env_name = ""
+prompt = ""
+timeout_sec = 60.0
+max_retries = 2
+retry_backoff_sec = 1.5
+qps_limit = 1.0
+max_images = 0
+
+[runtime.model]
+onnx_model = "../../work-dir/models/exp001/model-int8.onnx"
+backend = "yolo"
+
+[locate_anything]
+model = "nvidia/LocateAnything-3B"
+device = "auto"
+dtype = "auto"
+quantization = "none"
+bnb_4bit_compute_dtype = "float16"
+bnb_4bit_quant_type = "nf4"
+bnb_4bit_use_double_quant = true
+device_map = ""
+attn_implementation = ""
+generation_mode = "hybrid"
+max_new_tokens = 8192
+temperature = 0.0
+prompt_template = "Locate all the instances that match the following description: {class_name}."
+nms_iou = 0.65
+default_score = 1.0
+verbose = false
+max_images = 0
+
+[server]
+host = "127.0.0.1"
+port = 7812
+api_token = ""
+api_token_env_name = "VISION_AUTOLABEL_WORKER_API_TOKEN"
+advertise_url = ""
+
+[job_store]
+db_path = "../../work-dir/state/autolabel_worker_jobs.db"
+
+[control_plane]
+url = "http://127.0.0.1:7800"
+api_token = ""
+api_token_env_name = "VISION_CONTROL_PLANE_API_TOKEN"
+heartbeat_interval_sec = 15

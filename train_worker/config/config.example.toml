@@ -1,0 +1,66 @@
+[workspace]
+root = "../../work-dir"
+run_name = "exp001"
+log_file = "log.txt"
+log_level = "INFO"
+
+[node]
+id = "train-worker-001"
+role = "train_worker"
+endpoint = ""
+
+[class_map]
+names = ["Kitchen_waste", "Recyclable_waste", "Hazardous_waste", "Other_waste"]
+
+[class_map.id_map]
+Kitchen_waste = 0
+Recyclable_waste = 1
+Hazardous_waste = 2
+Other_waste = 3
+
+[data]
+yolo_dataset_dir = "../../work-dir/datasets/yolo"
+labeled_dir = "../../work-dir/datasets/labeled"
+
+[runtime]
+backend = "yolo"
+device = "cpu"
+seed = 42
+epochs = 1
+batch_size = 4
+img_size = 640
+dry_run = true
+
+[runtime.yolo]
+weights = ""
+
+[runtime.faster_rcnn]
+variant = "mobilenet_v3"
+lr = 0.005
+momentum = 0.9
+weight_decay = 0.0005
+num_workers = 0
+max_samples = 0
+
+[export]
+onnx = true
+opset = 17
+quantize = true
+quantize_mode = "dynamic"
+calib_samples = 32
+
+[server]
+host = "127.0.0.1"
+port = 7811
+api_token = ""
+api_token_env_name = "VISION_TRAIN_WORKER_API_TOKEN"
+advertise_url = ""
+
+[job_store]
+db_path = "../../work-dir/state/train_worker_jobs.db"
+
+[control_plane]
+url = "http://127.0.0.1:7800"
+api_token = ""
+api_token_env_name = "VISION_CONTROL_PLANE_API_TOKEN"
+heartbeat_interval_sec = 15

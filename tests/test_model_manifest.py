@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from share.kernel.model_manifest import (
+from core.model_manifest import (
     build_train_model_manifest,
     resolve_model_identity,
     write_model_manifest,

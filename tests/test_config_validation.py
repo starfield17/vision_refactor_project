@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from share.config.schema import DEFAULT_CONFIG, deep_merge_dict, validate_config
+from common.config.schema import DEFAULT_CONFIG, deep_merge_dict, validate_config
 
 
 class ConfigValidationTests(unittest.TestCase):

@@ -1,0 +1,81 @@
+services:
+  control-plane:
+    build:
+      context: ../..
+      dockerfile: Containerfile
+    command: python -m control_plane.api --config /app/control_plane/config/config.example.toml --set server.host=${CONTROL_PLANE_HOST:-0.0.0.0}
+    ports:
+      - "${CONTROL_PLANE_PORT:-7800}:7800"
+    volumes:
+      - ../../work-dir:/app/work-dir:Z
+
+  control-plane-web:
+    build:
+      context: ../../control_plane/web
+      dockerfile: Containerfile
+      args:
+        VITE_CONTROL_PLANE_API_URL: "${CONTROL_PLANE_PUBLIC_URL:-http://127.0.0.1:7800}"
+    ports:
+      - "${CONTROL_PLANE_WEB_PORT:-7801}:80"
+    depends_on:
+      - control-plane
+
+  statistics:
+    build:
+      context: ../..
+      dockerfile: Containerfile
+    command: >
+      python -m stats_service.api
+      --config /app/stats_service/config/config.example.toml
+      --set server.host=${STATISTICS_HOST:-0.0.0.0}
+      --set server.advertise_url=http://statistics:7803
+      --set control_plane.url=http://control-plane:7800
+    ports:
+      - "${STATISTICS_PORT:-7803}:7803"
+    volumes:
+      - ../../work-dir:/app/work-dir:Z
+
+  train-worker:
+    build:
+      context: ../..
+      dockerfile: Containerfile
+    command: >
+      python -m train_worker.service
+      --config /app/train_worker/config/config.example.toml
+      --set server.host=${TRAIN_WORKER_HOST:-0.0.0.0}
+      --set server.advertise_url=http://train-worker:7811
+      --set control_plane.url=http://control-plane:7800
+    ports:
+      - "${TRAIN_WORKER_PORT:-7811}:7811"
+    volumes:
+      - ../../work-dir:/app/work-dir:Z
+
+  autolabel-worker:
+    build:
+      context: ../..
+      dockerfile: Containerfile
+    command: >
+      python -m autolabel_worker.service
+      --config /app/autolabel_worker/config/config.example.toml
+      --set server.host=${AUTOLABEL_WORKER_HOST:-0.0.0.0}
+      --set server.advertise_url=http://autolabel-worker:7812
+      --set control_plane.url=http://control-plane:7800
+    ports:
+      - "${AUTOLABEL_WORKER_PORT:-7812}:7812"
+    volumes:
+      - ../../work-dir:/app/work-dir:Z
+
+  edge-agent:
+    build:
+      context: ../..
+      dockerfile: Containerfile
+    command: >
+      python -m edge_agent.service
+      --config /app/edge_agent/config/config.example.toml
+      --set server.host=${EDGE_AGENT_HOST:-0.0.0.0}
+      --set server.advertise_url=http://edge-agent:7813
+      --set control_plane.url=http://control-plane:7800
+    ports:
+      - "${EDGE_AGENT_PORT:-7813}:7813"
+    volumes:
+      - ../../work-dir:/app/work-dir:Z

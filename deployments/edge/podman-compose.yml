@@ -1,0 +1,17 @@
+services:
+  edge-agent:
+    build:
+      context: ../..
+      dockerfile: Containerfile
+    command: >
+      python -m edge_agent.service
+      --config /app/edge_agent/config/config.example.toml
+      --set server.host=${EDGE_AGENT_HOST:-0.0.0.0}
+      --set node.id=${EDGE_NODE_ID:-edge-001}
+      --set server.advertise_url=${EDGE_AGENT_URL:-http://127.0.0.1:7813}
+      --set control_plane.url=${CONTROL_PLANE_URL:-http://127.0.0.1:7800}
+    ports:
+      - "${EDGE_AGENT_PORT:-7813}:7813"
+    volumes:
+      - ../../work-dir:/app/work-dir:Z
+    devices: []

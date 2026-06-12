@@ -5,6 +5,8 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+build/
+*.egg-info/
 
 # IDE / OS
 .vscode/
@@ -13,6 +15,7 @@ __pycache__/
 
 # Runtime outputs and large artifacts
 work-dir/**
+archive/**
 !work-dir/.gitkeep
 !work-dir/README_work-dir.md
 !work-dir/config.example.toml
@@ -39,7 +42,10 @@ work-dir/config.resolved.toml
 # Optional local env
 .env
 .env.*
+!deployments/**/.env.example
 
 # Frontend dependencies/build output
 web/**/node_modules/
 web/**/dist/
+control_plane/web/**/node_modules/
+control_plane/web/**/dist/

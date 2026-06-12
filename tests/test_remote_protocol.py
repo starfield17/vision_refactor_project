@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from share.types.detection import Detection
+from common.types.detection import Detection
 
 
 class _FakeResult:
@@ -27,7 +27,7 @@ class _FakeInferencer:
 
 class RemoteProtocolTests(unittest.TestCase):
     def test_remote_response_contains_metadata_and_detections(self) -> None:
-        from share.kernel.deploy.remote_server import create_remote_app
+        from core.deploy.remote_server import create_remote_app
 
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -66,8 +66,8 @@ class RemoteProtocolTests(unittest.TestCase):
                 def warn(self, *args, **kwargs):
                     return None
 
-            with patch("share.kernel.deploy.remote_server.decode_jpeg_base64", return_value="frame"), patch(
-                "share.kernel.deploy.remote_server.encode_jpeg_base64", return_value="encoded"
+            with patch("core.deploy.remote_server.decode_jpeg_base64", return_value="frame"), patch(
+                "core.deploy.remote_server.encode_jpeg_base64", return_value="encoded"
             ):
                 app = create_remote_app(
                     cfg=cfg,

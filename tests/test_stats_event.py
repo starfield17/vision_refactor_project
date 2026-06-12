@@ -4,8 +4,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from share.kernel.statistics.sqlite_store import get_recent_events, init_stats_db, insert_stats_event
-from share.types.stats import StatsEvent
+from core.statistics.sqlite_store import get_recent_events, init_stats_db, insert_stats_event
+from common.types.stats import StatsEvent
 
 
 class StatsEventTests(unittest.TestCase):

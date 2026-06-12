@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from share.kernel.infer.faster_rcnn_onnx import LocalFasterRCNNOnnxInferencer
+from core.infer.faster_rcnn_onnx import LocalFasterRCNNOnnxInferencer
 
 
 class _Input:
