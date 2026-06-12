@@ -85,9 +85,12 @@ keys and should not expose old package names or old service names.
 Use the configured Python environment:
 
 ```bash
-python -m pip install -e ".[dev]"
+python -m pip install -r requirements-dev.txt
 bash scripts/check.sh
 ```
+
+`requirements.txt` mirrors the runtime dependency list in `pyproject.toml`; keep both in
+sync when adding or removing runtime packages.
 
 To apply Ruff fixes and formatting before running the same checks:
 

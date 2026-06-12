@@ -26,7 +26,14 @@ code has been moved to `archive/legacy_pre_distributed/` and is intentionally ig
 Use an activated Python environment with the project dependencies installed:
 
 ```bash
+python -m pip install -r requirements.txt
 python -m pytest -q
+```
+
+For development checks, install the dev requirements:
+
+```bash
+python -m pip install -r requirements-dev.txt
 ```
 
 ## Quick Start
@@ -63,6 +70,13 @@ launch.bat up
 launch.bat status
 launch.bat logs control-plane
 launch.bat down
+```
+
+Set `PYTHON` first when Windows should use a specific Python environment:
+
+```bat
+set PYTHON=C:\path\to\python.exe
+launch.bat up
 ```
 
 Use Podman through the same shortcut when you want containers:

@@ -34,6 +34,30 @@ function New-QuickstartDirs {
     }
 }
 
+function Test-CommandAvailable($File, $Argument) {
+    $stdoutPath = [System.IO.Path]::GetTempFileName()
+    $stderrPath = [System.IO.Path]::GetTempFileName()
+    try {
+        & $File $Argument > $stdoutPath 2> $stderrPath
+        return $LASTEXITCODE -eq 0
+    }
+    catch {
+        return $false
+    }
+    finally {
+        Remove-Item -Force $stdoutPath, $stderrPath -ErrorAction SilentlyContinue
+    }
+}
+
+function Assert-LocalPrerequisites {
+    if (!(Test-CommandAvailable $PythonBin "--version")) {
+        throw "Python is not runnable as '$PythonBin'. Set PYTHON to a Windows Python with project dependencies, or use bash scripts/quickstart.sh inside WSL."
+    }
+    if (!(Test-CommandAvailable "npm" "--version")) {
+        throw "npm is not runnable. Install Node.js/npm on Windows, or use bash scripts/quickstart.sh inside WSL."
+    }
+}
+
 function Get-ServiceNames {
     $names = @(
         "control-plane",
@@ -169,8 +193,14 @@ function Get-ServiceSpec($Name) {
         }
         "control-plane-web" {
             @{
-                File = "npm"
-                Args = @("--prefix", "control_plane/web", "run", "dev", "--", "--port", $WebPort, "--strictPort")
+                File = "powershell.exe"
+                Args = @(
+                    "-NoProfile",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-Command",
+                    "npm --prefix control_plane/web run dev -- --port $WebPort --strictPort"
+                )
                 Env = @{ VITE_CONTROL_PLANE_API_URL = "http://127.0.0.1:7800" }
             }
         }
@@ -258,13 +288,12 @@ function Start-QuickstartService($Name) {
     $previousEnv = @{}
     $processEnv = @{
         NO_PROXY = "127.0.0.1,localhost,::1"
-        no_proxy = "127.0.0.1,localhost,::1"
     }
     if ($env:NO_PROXY) {
         $processEnv.NO_PROXY = "$($processEnv.NO_PROXY),$env:NO_PROXY"
     }
     if ($env:no_proxy) {
-        $processEnv.no_proxy = "$($processEnv.no_proxy),$env:no_proxy"
+        $processEnv.NO_PROXY = "$($processEnv.NO_PROXY),$env:no_proxy"
     }
     if ($spec.ContainsKey("Env")) {
         foreach ($entry in $spec.Env.GetEnumerator()) {
@@ -308,6 +337,17 @@ function Start-QuickstartService($Name) {
         Write-Info "$Name ready at $(Get-HealthUrl $Name)"
     }
     else {
+        $proc = Get-Process -Id $proc.Id -ErrorAction SilentlyContinue
+        if ($null -eq $proc) {
+            Remove-Item -Force (Get-PidPath $Name) -ErrorAction SilentlyContinue
+            Write-Warn "$Name exited before health check passed; logs: $($logPaths -join ', ')"
+            foreach ($logPath in $logPaths) {
+                if (Test-Path $logPath) {
+                    Get-Content $logPath -Tail 40
+                }
+            }
+            throw "$Name failed to start"
+        }
         Write-Warn "$Name started but health check did not pass yet; logs: $($logPaths -join ', ')"
     }
 }
@@ -337,6 +377,7 @@ function Stop-QuickstartService($Name) {
 
 function Start-All {
     New-QuickstartDirs
+    Assert-LocalPrerequisites
     foreach ($name in Get-ServiceNames) {
         Start-QuickstartService $name
     }
