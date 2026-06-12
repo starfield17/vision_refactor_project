@@ -46,10 +46,18 @@ type WorkerStatus = {
   error?: string;
 };
 
-const apiBase = (import.meta.env.VITE_CONTROL_PLANE_API_URL || "http://127.0.0.1:7800").replace(/\/$/, "");
+const apiBase = (import.meta.env.VITE_CONTROL_PLANE_API_URL || "http://127.0.0.1:7800").replace(
+  /\/$/,
+  "",
+);
+const apiToken = import.meta.env.VITE_CONTROL_PLANE_API_TOKEN || "";
+
+function apiHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  return apiToken ? { ...extra, Authorization: `Bearer ${apiToken}` } : extra;
+}
 
 async function apiGet<T>(path: string): Promise<T> {
-  const response = await fetch(`${apiBase}${path}`);
+  const response = await fetch(`${apiBase}${path}`, { headers: apiHeaders() });
   if (!response.ok) {
     throw new Error(`${response.status} ${response.statusText}`);
   }
@@ -59,7 +67,7 @@ async function apiGet<T>(path: string): Promise<T> {
 async function apiPost<T>(path: string, body: Record<string, unknown>): Promise<T> {
   const response = await fetch(`${apiBase}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: apiHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body),
   });
   if (!response.ok) {
@@ -260,6 +268,10 @@ function App() {
               <div>
                 <span>API URL</span>
                 <strong>{apiBase}</strong>
+              </div>
+              <div>
+                <span>API Token</span>
+                <strong>{apiToken ? "configured" : "not configured"}</strong>
               </div>
               <div>
                 <span>Refresh Interval</span>

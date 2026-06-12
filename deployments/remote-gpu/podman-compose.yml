@@ -7,8 +7,10 @@ services:
       python -m remote_worker.api
       --config /app/remote_worker/config/config.example.toml
       --set runtime.listen_host=${REMOTE_WORKER_HOST:-0.0.0.0}
+      --set runtime.ingest_api_key=${REMOTE_WORKER_INGEST_API_TOKEN:-}
       --set node.endpoint=${REMOTE_WORKER_URL:-http://127.0.0.1:60051}
       --set control_plane.url=${CONTROL_PLANE_URL:-http://127.0.0.1:7800}
+      --set control_plane.api_token=${CONTROL_PLANE_API_TOKEN:-}
     ports:
       - "${REMOTE_WORKER_PORT:-60051}:60051"
     volumes:

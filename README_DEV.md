@@ -98,6 +98,10 @@ bash scripts/check.sh --fix
 The Podman Web image is defined in `control_plane/web/Containerfile` and is wired into
 the `all-in-one` profile as `control-plane-web`.
 
+Use `bash deployments/install.sh doctor <profile>` before starting a profile. The script
+validates Podman/compose availability, creates a local ignored `.env`, generates missing
+local tokens, checks common port conflicts, and renders the compose config.
+
 ## Local Archive
 
 Pre-distributed code lives under `archive/legacy_pre_distributed/` for local reference

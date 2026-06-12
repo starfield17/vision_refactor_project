@@ -157,13 +157,17 @@ Control Plane Web: http://127.0.0.1:7801
 The project targets Podman, not Docker. Profiles:
 
 ```bash
-bash deployments/install.sh all-in-one
-bash deployments/install.sh edge
-bash deployments/install.sh remote-gpu
+bash deployments/install.sh doctor all-in-one
+bash deployments/install.sh up all-in-one
+bash deployments/install.sh logs all-in-one
+bash deployments/install.sh down all-in-one
 ```
 
-The install script creates a profile `.env` from `.env.example`, creates required
-`work-dir` subdirectories, and starts `podman compose` or `podman-compose`.
+The install script creates a local profile `.env` from `.env.example`, generates
+missing local tokens, creates required `work-dir` subdirectories, and uses
+`podman compose` or `podman-compose`. Supported profiles are `all-in-one`, `edge`,
+and `remote-gpu`; supported commands are `install`, `up`, `down`, `restart`,
+`status`, `logs`, `doctor`, and `config`.
 
 `all-in-one` starts:
 
