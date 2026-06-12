@@ -263,6 +263,21 @@ the repo root.
 
 ---
 
+
+## LocateAnything Runtime Artifacts
+
+When `autolabel.mode = "locate_anything"`, the run writes the same label artifacts as other
+AutoLabel modes and may also write:
+
+```text
+outputs/<run_id>/annotated_frames/       # optional previews when autolabel.visualize=true
+outputs/<run_id>/locate_anything_raw/    # raw grounding text per image/class query
+```
+
+When `deploy.edge.mode = "locate_anything"`, annotated deploy frames are written under the
+normal edge deploy output directory when `deploy.edge.save_annotated=true`. Statistics events
+are stored in the same SQLite database as local, stream, and LLM deploy modes.
+
 ## Gitignore Behaviour
 
 The following patterns are excluded from Git (via the root `.gitignore`):

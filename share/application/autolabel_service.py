@@ -24,6 +24,7 @@ AUTOLABEL_EDITABLE_PREFIXES = (
     "data.unlabeled_dir",
     "train.device",
     "autolabel",
+    "locate_anything",
 )
 
 
@@ -61,6 +62,22 @@ def build_autolabel_overrides_from_payload(payload: dict[str, Any]) -> list[str]
     )
     append_override(overrides, "autolabel.llm.qps_limit", payload.get("llm_qps_limit"))
     append_override(overrides, "autolabel.llm.max_images", payload.get("llm_max_images"))
+
+    append_override(overrides, "locate_anything.model", payload.get("locate_anything_model"))
+    append_override(overrides, "locate_anything.device", payload.get("locate_anything_device"))
+    append_override(overrides, "locate_anything.dtype", payload.get("locate_anything_dtype"))
+    append_override(
+        overrides,
+        "locate_anything.generation_mode",
+        payload.get("locate_anything_generation_mode"),
+    )
+    append_override(overrides, "locate_anything.max_new_tokens", payload.get("locate_anything_max_new_tokens"))
+    append_override(overrides, "locate_anything.temperature", payload.get("locate_anything_temperature"))
+    append_override(overrides, "locate_anything.prompt_template", payload.get("locate_anything_prompt_template"))
+    append_override(overrides, "locate_anything.nms_iou", payload.get("locate_anything_nms_iou"))
+    append_override(overrides, "locate_anything.default_score", payload.get("locate_anything_default_score"))
+    append_override(overrides, "locate_anything.verbose", payload.get("locate_anything_verbose"))
+    append_override(overrides, "locate_anything.max_images", payload.get("locate_anything_max_images"))
     return overrides
 
 

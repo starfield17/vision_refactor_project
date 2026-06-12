@@ -192,6 +192,23 @@ Uses a token-bucket algorithm to avoid API throttling errors.
 
 ## `deploy/`
 
+
+### `autolabel/locate_anything_autolabel.py` — `run_locate_anything_autolabel(cfg, run_ctx)`
+
+Scans `data.unlabeled_dir`, uses `class_map.names` as the query list, calls the
+LocateAnything worker, then writes YOLO-format labels through the same AutoLabel output path
+as model mode. Raw LocateAnything text is saved under
+`work-dir/outputs/<run_id>/locate_anything_raw` for debugging and prompt iteration.
+
+Important config keys:
+
+- `autolabel.mode = "locate_anything"`
+- `locate_anything.model`
+- `locate_anything.device`
+- `locate_anything.generation_mode`
+- `locate_anything.prompt_template`
+- `locate_anything.max_images`
+
 ### `deploy/edge_local.py` — `run_edge_local_deploy(cfg, run_ctx)`
 
 Runs the full detection pipeline locally on the edge device:
@@ -216,6 +233,14 @@ remote inference server (`deploy/remote/`) via `transport/frame_http.py`.
 LLM mode: sends frames to an OpenAI-compatible vision LLM API for inference.
 Follows the same frame-source and stats-push flow as local mode, but calls the LLM client
 for predictions.
+
+
+### `deploy/edge_locate_anything.py` — `run_edge_locate_anything_deploy(cfg, run_ctx)`
+
+Runs the normal frame-source loop, but inference is performed by LocateAnything instead of an
+ONNX detector or remote stream. It emits standard `StatsEvent` payloads with
+`backend="locate_anything"` and can save annotated frames through the shared deploy helpers.
+Use this mode when open-vocabulary behavior is worth the additional GPU and latency cost.
 
 ### `deploy/remote_server.py` — `run_remote_deploy(cfg, run_ctx)`
 

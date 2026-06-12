@@ -115,7 +115,7 @@ button {
 
 .grid {
   display: grid;
-  grid-template-columns: minmax(320px, 380px) minmax(0, 1fr);
+  grid-template-columns: minmax(340px, 420px) minmax(0, 1fr);
   gap: 16px;
   margin-top: 16px;
   align-items: start;
@@ -125,6 +125,58 @@ button {
   min-width: 0;
   overflow: hidden;
   padding: 16px;
+}
+
+.presetGrid {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.presetButton {
+  display: block;
+  width: 100%;
+  min-height: auto;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.presetButton.selected {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 1px #2563eb inset;
+}
+
+.presetButton strong,
+.presetButton span {
+  display: block;
+}
+
+.presetButton span {
+  margin-top: 4px;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.hintBox {
+  margin-bottom: 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  background: #eff6ff;
+  padding: 10px 12px;
+  color: #1e3a8a;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.hintBox strong,
+.hintBox span {
+  display: block;
+}
+
+.hintBox span {
+  margin-top: 4px;
 }
 
 textarea {

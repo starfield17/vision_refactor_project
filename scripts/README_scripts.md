@@ -357,3 +357,31 @@ bash scripts/change_pip_conda_source.sh --source official
 | `aliyun` | `https://mirrors.aliyun.com/pypi/simple` |
 
 ---
+
+## LocateAnything Smoke Tests
+
+After starting the Train/AutoLabel service, run a capped AutoLabel smoke test:
+
+```bash
+python -m autolabel.cli \
+  --config ./work-dir/config.toml \
+  --set autolabel.mode=locate_anything \
+  --set autolabel.visualize=true \
+  --set locate_anything.device=cuda \
+  --set locate_anything.max_images=20
+```
+
+After starting Statistics, run a capped deploy smoke test:
+
+```bash
+python -m deploy.edge.cli \
+  --config ./work-dir/config.toml \
+  --set deploy.edge.mode=locate_anything \
+  --set deploy.edge.source=images \
+  --set deploy.edge.max_frames=1 \
+  --set locate_anything.device=cuda
+```
+
+Use these smoke tests before removing `max_images` or increasing `max_frames`, because
+LocateAnything uses a much heavier VLM path than local ONNX inference.
+

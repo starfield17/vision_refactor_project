@@ -132,8 +132,8 @@ The core business logic.  Each sub-package maps to one pipeline stage:
 |---------|-------------|
 | `trainer/` | `run_yolo_train()`, `run_faster_rcnn_train()` — registered with the kernel as backends |
 | `infer/` | Backend-aware inference adapters for YOLO and Faster-RCNN, including ONNX Runtime paths |
-| `autolabel/` | `run_model_autolabel()`, `run_llm_autolabel()` |
-| `deploy/` | `run_edge_local_deploy()`, `run_edge_stream_deploy()`, `run_edge_llm_deploy()`, `run_remote_deploy()` |
+| `autolabel/` | `run_model_autolabel()`, `run_llm_autolabel()`, `run_locate_anything_autolabel()` |
+| `deploy/` | `run_edge_local_deploy()`, `run_edge_stream_deploy()`, `run_edge_llm_deploy()`, `run_edge_locate_anything_deploy()`, `run_remote_deploy()` |
 | `export/` | ONNX export helpers; YOLO uses `onnx_export.py`, Faster-RCNN uses `faster_rcnn_onnx_export.py` |
 | `transport/` | `stats_http.py` (push stats), `frame_http.py` (stream frames) — pure stdlib urllib |
 | `statistics/` | `sqlite_store.py` — SQLite schema init, insert, query |
@@ -152,6 +152,22 @@ The kernel is not the business logic; it is the **orchestrator**.  For every pip
    written, regardless of failure.
 5. Writes `metrics.json` and `artifacts.json` to the run directory.
 6. Returns a `RunResult` dataclass.
+
+
+### LocateAnything backend notes
+
+LocateAnything is registered as a separate grounding backend instead of being folded into
+`create_inferencer()`. That keeps the ONNX detector path lightweight and preserves the
+text-query semantics needed by LocateAnything. Shared model loading/parsing lives in
+`share/kernel/infer/locate_anything.py`; pipeline adapters live in:
+
+- `share/kernel/autolabel/locate_anything_autolabel.py`
+- `share/kernel/deploy/edge_locate_anything.py`
+
+The backend queries each `class_map.names` entry with `locate_anything.prompt_template`,
+normalizes returned boxes into project `Detection` objects, applies class-local NMS, and writes
+standard labels/statistics. UI edits that persist `[locate_anything]` config should route through
+`share/application/autolabel_service.py` so the editable-prefix guard remains explicit.
 
 ### `share/kernel/registry.py` — `KernelRegistry`
 
@@ -180,7 +196,7 @@ Every field is type-checked and range-validated.  Key constraints:
 - `train.faster_rcnn.lr` must be `> 0`; `momentum` must be in `[0, 1]`
 - `autolabel.confidence` must be in `[0, 1]`
 - `autolabel.on_conflict` must be one of `{skip, overwrite, merge}`
-- `deploy.edge.mode` must be one of `{local, stream, llm}`
+- `deploy.edge.mode` must be one of `{local, stream, llm, locate_anything}`
 - `deploy.edge.source` must be one of `{camera, video, images}`
 - `deploy.edge.jpeg_quality` must be in `[1, 100]`
 - `deploy.remote.listen_port` must be in `[1, 65535]`
@@ -189,6 +205,7 @@ Every field is type-checked and range-validated.  Key constraints:
 - `services.*.job_db_path` must be non-empty
 - `class_map.names` must be non-empty, no duplicates; `id_map` must match `names` order exactly
 - LLM mode fields (`base_url`, `model`, `prompt`) must be non-empty when `mode = "llm"`
+- LocateAnything fields validate `generation_mode`, numeric ranges, and that `prompt_template` contains `{class_name}`
 
 ### Adding a New Config Field
 
@@ -248,7 +265,7 @@ class Detection:
 class LabelRecord:
     schema_version: int         # Must be 1
     image_path:     str         # non-empty
-    source:         str         # e.g. "model", "llm", "manual"
+    source:         str         # e.g. "model", "llm", "locate_anything", "manual"
     detections:     list[Detection]
 ```
 

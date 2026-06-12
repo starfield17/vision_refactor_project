@@ -15,6 +15,63 @@ type Job = {
   result: Record<string, unknown>;
 };
 
+type JobKind = "train" | "autolabel";
+
+type OverrideTemplate = {
+  id: string;
+  label: string;
+  kind: JobKind;
+  description: string;
+  body: string;
+};
+
+const overrideTemplates: OverrideTemplate[] = [
+  {
+    id: "train_dry_run",
+    label: "Train smoke test",
+    kind: "train",
+    description: "Validate the training config without a long run.",
+    body: "train.dry_run=true\ntrain.epochs=1",
+  },
+  {
+    id: "autolabel_model",
+    label: "AutoLabel / ONNX",
+    kind: "autolabel",
+    description: "Use a trained YOLO or Faster-RCNN ONNX model.",
+    body: [
+      "autolabel.mode=model",
+      "autolabel.model.backend=yolo",
+      "autolabel.model.onnx_model=./work-dir/models/exp001/model-int8.onnx",
+      "autolabel.visualize=true",
+    ].join("\n"),
+  },
+  {
+    id: "autolabel_locate_anything",
+    label: "AutoLabel / LocateAnything",
+    kind: "autolabel",
+    description: "Open-vocabulary grounding for bootstrapping labels from class_map.names.",
+    body: [
+      "autolabel.mode=locate_anything",
+      "autolabel.visualize=true",
+      "locate_anything.model=nvidia/LocateAnything-3B",
+      "locate_anything.device=cuda",
+      "locate_anything.generation_mode=hybrid",
+      "locate_anything.max_images=20",
+    ].join("\n"),
+  },
+  {
+    id: "autolabel_llm",
+    label: "AutoLabel / Vision LLM",
+    kind: "autolabel",
+    description: "Use an OpenAI-compatible vision API with structured prompts.",
+    body: [
+      "autolabel.mode=llm",
+      "autolabel.visualize=true",
+      "autolabel.llm.max_images=5",
+    ].join("\n"),
+  },
+];
+
 const apiBase = import.meta.env.VITE_TRAIN_AUTOLABEL_API_URL || "http://127.0.0.1:7793";
 const apiToken = import.meta.env.VITE_TRAIN_AUTOLABEL_API_TOKEN || "";
 
@@ -33,8 +90,8 @@ async function api(path: string, init: RequestInit = {}) {
 
 function App() {
   const [jobs, setJobs] = useState<Job[]>([]);
-  const [selectedKind, setSelectedKind] = useState("train");
-  const [overrides, setOverrides] = useState("train.dry_run=true");
+  const [selectedKind, setSelectedKind] = useState<JobKind>("train");
+  const [overrides, setOverrides] = useState(overrideTemplates[0].body);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -42,6 +99,17 @@ function App() {
     () => jobs.find((job) => job.status === "queued" || job.status === "running"),
     [jobs],
   );
+
+  const visibleTemplates = useMemo(
+    () => overrideTemplates.filter((template) => template.kind === selectedKind),
+    [selectedKind],
+  );
+
+  function chooseKind(kind: JobKind) {
+    setSelectedKind(kind);
+    const firstTemplate = overrideTemplates.find((template) => template.kind === kind);
+    if (firstTemplate) setOverrides(firstTemplate.body);
+  }
 
   async function refresh() {
     const data = await api("/api/v1/jobs?limit=50");
@@ -102,12 +170,12 @@ function App() {
 
       <section className="toolbar">
         <div className="segmented">
-          <button className={selectedKind === "train" ? "active" : ""} onClick={() => setSelectedKind("train")}>
+          <button className={selectedKind === "train" ? "active" : ""} onClick={() => chooseKind("train")}>
             Train
           </button>
           <button
             className={selectedKind === "autolabel" ? "active" : ""}
-            onClick={() => setSelectedKind("autolabel")}
+            onClick={() => chooseKind("autolabel")}
           >
             Autolabel
           </button>
@@ -127,6 +195,23 @@ function App() {
       <section className="grid">
         <div className="panel">
           <h2>Overrides</h2>
+          <div className="presetGrid">
+            {visibleTemplates.map((template) => (
+              <button key={template.id} className="presetButton" onClick={() => setOverrides(template.body)}>
+                <strong>{template.label}</strong>
+                <span>{template.description}</span>
+              </button>
+            ))}
+          </div>
+          {selectedKind === "autolabel" && (
+            <div className="hintBox">
+              <strong>LocateAnything flow</strong>
+              <span>
+                Pick the LocateAnything preset to query every class in <code>class_map.names</code>, write labels into
+                <code> data.labeled_dir</code>, and save raw grounding output under the run output directory.
+              </span>
+            </div>
+          )}
           <textarea value={overrides} onChange={(event) => setOverrides(event.target.value)} />
           {message && <p className="message">{message}</p>}
         </div>

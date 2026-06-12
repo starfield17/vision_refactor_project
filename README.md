@@ -40,7 +40,7 @@ pipelines directly.
 |-------|--------|-------------|
 | 1 | `train` | Train a detection model (YOLO or Faster-RCNN), export to ONNX |
 | 2 | _(export)_ | Embedded in training: ONNX export for YOLO and Faster-RCNN; YOLO supports optional INT-8 dynamic quantization |
-| 3 | `autolabel` | Auto-annotate an unlabeled image folder using a local model or an LLM API |
+| 3 | `autolabel` | Auto-annotate an unlabeled image folder using a local model, an LLM API, or LocateAnything grounding |
 | 4 | `deploy/statistics` | Ingest/query per-frame telemetry through the deploy-statistics backend and React dashboard |
 | 5 | `deploy/edge` | Run inference on camera / video / image folder, push stats to the statistics service |
 | 5 | `deploy/remote` | Host a REST inference server that edge devices can stream frames to |
@@ -93,9 +93,9 @@ vision-refactor-project/
 │   │   ├── kernel.py          ← VisionKernel: orchestrates run contexts & pipelines
 │   │   ├── registry.py        ← KernelRegistry: plugin registry for trainers/deployers
 │   │   ├── trainer/           ← yolo.py, faster_rcnn.py
-│   │   ├── infer/             ← local_yolo.py, faster_rcnn.py
-│   │   ├── autolabel/         ← model_autolabel.py, llm_autolabel.py
-│   │   ├── deploy/            ← edge_local.py, edge_stream.py, edge_llm.py, remote_server.py
+│   │   ├── infer/             ← local_yolo.py, faster_rcnn.py, locate_anything.py
+│   │   ├── autolabel/         ← model_autolabel.py, llm_autolabel.py, locate_anything_autolabel.py
+│   │   ├── deploy/            ← edge_local.py, edge_stream.py, edge_llm.py, edge_locate_anything.py, remote_server.py
 │   │   ├── export/            ← onnx_export.py
 │   │   ├── transport/         ← stats_http.py, frame_http.py
 │   │   ├── statistics/        ← sqlite_store.py
@@ -152,6 +152,7 @@ vision-refactor-project/
 - Optional (auto-detected at runtime):
   - `torchvision` — required for Faster-RCNN training/inference
   - `onnxruntime-gpu` — enables CUDAExecutionProvider for ONNX inference when the matching CUDA runtime libraries are installed
+  - `transformers`, `peft`, `Pillow`, and a CUDA-compatible `torch` install — required for LocateAnything AutoLabel/deploy
 
 ---
 
@@ -254,6 +255,10 @@ The React apps call the backend service APIs. Configure `VITE_TRAIN_AUTOLABEL_AP
 `VITE_TRAIN_AUTOLABEL_API_TOKEN`, `VITE_DEPLOY_STATISTICS_API_URL`, or
 `VITE_DEPLOY_STATISTICS_API_TOKEN` when the defaults are not suitable.
 
+The Train/AutoLabel UI includes presets for model, LLM, and LocateAnything AutoLabel.
+The Deploy/Statistics UI includes presets for local ONNX, stream, LLM, and LocateAnything
+edge deployment.
+
 **Health check notes:**
 
 - Backend API root path (`http://127.0.0.1:7793/` or `http://127.0.0.1:7797/`) may return
@@ -337,9 +342,10 @@ All modules share a single `work-dir/config.toml`.  The file format is **TOML**.
 | `[train.yolo]` | YOLO-specific: pretrained weights path |
 | `[train.faster_rcnn]` | Faster-RCNN-specific: variant, lr, momentum, etc. |
 | `[export]` | ONNX export settings, quantization |
-| `[autolabel]` | Autolabel mode (model/llm), confidence, conflict handling |
+| `[autolabel]` | Autolabel mode (`model`/`llm`/`locate_anything`), confidence, conflict handling |
 | `[autolabel.llm]` | LLM API endpoint, model, prompt, rate limiting |
 | `[autolabel.model]` | ONNX model path for model-based autolabeling |
+| `[locate_anything]` | Shared LocateAnything grounding settings for AutoLabel and edge deploy |
 | `[deploy.edge]` | Edge inference: source type, model, FPS, stats endpoint |
 | `[deploy.edge.llm]` | LLM settings when edge mode = `llm` |
 | `[deploy.remote]` | Remote server: listen host/port, model, ingest API key |
@@ -447,12 +453,13 @@ Scans unlabeled images and generates YOLO-format label files automatically.
 |------|-----------|-------------|
 | `model` | `autolabel.mode = "model"` | Local ONNX model inference |
 | `llm` | `autolabel.mode = "llm"` | OpenAI-compatible vision LLM API |
+| `locate_anything` | `autolabel.mode = "locate_anything"` | LocateAnything open-vocabulary grounding over `class_map.names` |
 
 **Key config fields:**
 
 ```toml
 [autolabel]
-mode        = "model"   # "model" | "llm"
+mode        = "model"   # "model" | "llm" | "locate_anything"
 confidence  = 0.5       # Detection confidence threshold (0–1)
 batch_size  = 2         # Images per batch
 visualize   = true      # Save annotated preview images
@@ -472,7 +479,25 @@ max_retries   = 2
 retry_backoff_sec = 1.5
 qps_limit     = 1.0                   # queries per second
 max_images    = 0                     # 0 = no limit
+
+[locate_anything]
+model = "nvidia/LocateAnything-3B"
+device = "auto"
+dtype = "auto"
+generation_mode = "hybrid"  # "fast" | "slow" | "hybrid"
+max_new_tokens = 8192
+temperature = 0.0
+prompt_template = "Locate all the instances that match the following description: {class_name}."
+nms_iou = 0.65
+default_score = 1.0
+verbose = false
+max_images = 0
 ```
+
+LocateAnything uses `class_map.names` as the class/query list. For each class name it renders
+`locate_anything.prompt_template`, runs grounding, converts boxes back to project `Detection`
+records, applies NMS, and writes labels through the normal AutoLabel output path. See
+[`docs/LOCATE_ANYTHING.md`](docs/LOCATE_ANYTHING.md) for examples.
 
 `on_conflict` controls behaviour when a label file already exists for an image:
 - `skip` — do not overwrite existing labels
@@ -495,16 +520,17 @@ telemetry to the statistics API.
 
 | Mode | Description |
 |------|-------------|
-| `local` | Backend-aware inference runs on the edge device itself |
+| `local` | Backend-aware ONNX inference runs on the edge device itself |
 | `stream` | Raw JPEG frames are streamed to a remote inference server |
 | `llm` | Frames are sent to an OpenAI-compatible vision LLM API |
+| `locate_anything` | Frames are grounded locally by LocateAnything and pushed to statistics |
 
 **Key config fields:**
 
 ```toml
 [deploy.edge]
 source_id      = "edge-001"       # Unique identifier for this edge device
-mode           = "local"          # "local" | "stream" | "llm"
+mode           = "local"          # "local" | "stream" | "llm" | "locate_anything"
 source         = "images"         # "camera" | "video" | "images"
 camera_id      = 0
 video_path     = ""
@@ -988,6 +1014,19 @@ python -m autolabel.cli \
   --set autolabel.llm.max_images=5
 ```
 
+**LocateAnything mode** (open-vocabulary grounding):
+
+```bash
+python -m autolabel.cli \
+  --config ./work-dir/config.toml \
+  --set autolabel.mode=locate_anything \
+  --set data.unlabeled_dir=../coco128/images/train2017 \
+  --set autolabel.visualize=true \
+  --set locate_anything.device=cuda \
+  --set locate_anything.generation_mode=hybrid \
+  --set locate_anything.max_images=20
+```
+
 **Conflict strategy** (`autolabel.on_conflict`):
 
 | Value | Behavior |
@@ -1051,6 +1090,20 @@ python -m deploy.edge.cli \
   --set deploy.edge.max_frames=1
 ```
 
+**Edge LocateAnything** — edge device runs open-vocabulary grounding locally:
+
+```bash
+python -m deploy.edge.cli \
+  --config ./work-dir/config.toml \
+  --set deploy.edge.mode=locate_anything \
+  --set deploy.edge.source=images \
+  --set deploy.edge.images_dir=../coco128/images/train2017 \
+  --set deploy.edge.save_annotated=true \
+  --set deploy.edge.max_frames=1 \
+  --set locate_anything.device=cuda \
+  --set locate_anything.generation_mode=hybrid
+```
+
 ### Common Task Templates
 
 **"Help me quickly run local deployment":**
@@ -1067,6 +1120,12 @@ python -m deploy.edge.cli \
 3. Write path to `autolabel.model.onnx_model`
 4. Run `autolabel.mode=model` on a small sample to verify
 
+**"Help me bootstrap labels with LocateAnything":**
+1. Confirm `class_map.names` and `class_map.id_map` are correct
+2. Run `autolabel.mode=locate_anything` with `locate_anything.max_images=20`
+3. Review `annotated_frames` and `locate_anything_raw` under the run output directory
+4. Correct labels, then train a small fixed-class detector for production deploy
+
 **"Help me do remote inference deployment":**
 1. Start Statistics
 2. Start `deploy.remote.cli`
@@ -1082,7 +1141,8 @@ python -m deploy.edge.cli \
 - `ConfigError` messages
 
 Common causes: `class_map.id_map` inconsistent with `class_map.names`, ONNX model path
-doesn't exist, wrong `data.yolo_dataset_dir`, missing `api_key_env_name` for LLM.
+doesn't exist, wrong `data.yolo_dataset_dir`, missing `api_key_env_name` for LLM, or
+`locate_anything.prompt_template` missing `{class_name}`.
 
 **Deploy produces no results** — check:
 - Is `deploy.edge.max_frames` too small

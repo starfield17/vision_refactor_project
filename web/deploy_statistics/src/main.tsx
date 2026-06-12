@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Play, RefreshCw, Square } from "lucide-react";
 import "./styles.css";
@@ -19,6 +19,65 @@ type Job = {
   run_id: string;
 };
 
+type DeployTemplate = {
+  id: string;
+  label: string;
+  description: string;
+  body: string;
+};
+
+const deployTemplates: DeployTemplate[] = [
+  {
+    id: "local",
+    label: "Edge / Local ONNX",
+    description: "Run YOLO or Faster-RCNN ONNX inference on the edge node.",
+    body: [
+      "deploy.edge.mode=local",
+      "deploy.edge.source=images",
+      "deploy.edge.images_dir=./work-dir/datasets/smoke/images",
+      "deploy.edge.max_frames=100",
+    ].join("\n"),
+  },
+  {
+    id: "locate_anything",
+    label: "Edge / LocateAnything",
+    description: "Use GPU-backed open-vocabulary grounding when latency budget allows.",
+    body: [
+      "deploy.edge.mode=locate_anything",
+      "deploy.edge.source=images",
+      "deploy.edge.images_dir=./work-dir/datasets/smoke/images",
+      "deploy.edge.max_frames=20",
+      "deploy.edge.save_annotated=true",
+      "locate_anything.model=nvidia/LocateAnything-3B",
+      "locate_anything.device=cuda",
+      "locate_anything.generation_mode=hybrid",
+    ].join("\n"),
+  },
+  {
+    id: "stream",
+    label: "Edge / Stream",
+    description: "Send JPEG frames to a remote inference server.",
+    body: [
+      "deploy.edge.mode=stream",
+      "deploy.edge.source=images",
+      "deploy.edge.images_dir=./work-dir/datasets/smoke/images",
+      "deploy.edge.stream_endpoint=http://127.0.0.1:60051/api/v1/frame",
+      "deploy.edge.max_frames=100",
+    ].join("\n"),
+  },
+  {
+    id: "llm",
+    label: "Edge / Vision LLM",
+    description: "Call an OpenAI-compatible vision API directly from edge deploy.",
+    body: [
+      "deploy.edge.mode=llm",
+      "deploy.edge.source=images",
+      "deploy.edge.images_dir=./work-dir/datasets/smoke/images",
+      "deploy.edge.max_frames=5",
+    ].join("\n"),
+  },
+];
+
 const apiBase = import.meta.env.VITE_DEPLOY_STATISTICS_API_URL || "http://127.0.0.1:7797";
 const apiToken = import.meta.env.VITE_DEPLOY_STATISTICS_API_TOKEN || "";
 
@@ -38,8 +97,13 @@ async function api(path: string, init: RequestInit = {}) {
 function App() {
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
-  const [overrides, setOverrides] = useState("deploy.edge.mode=local");
+  const [overrides, setOverrides] = useState(deployTemplates[0].body);
   const [message, setMessage] = useState("");
+
+  const selectedTemplate = useMemo(
+    () => deployTemplates.find((template) => template.body === overrides),
+    [overrides],
+  );
 
   async function refresh() {
     const [dash, jobData] = await Promise.all([
@@ -114,6 +178,25 @@ function App() {
       <section className="grid">
         <div className="panel">
           <h2>Deploy Overrides</h2>
+          <div className="presetGrid">
+            {deployTemplates.map((template) => (
+              <button
+                key={template.id}
+                className={`presetButton ${selectedTemplate?.id === template.id ? "selected" : ""}`}
+                onClick={() => setOverrides(template.body)}
+              >
+                <strong>{template.label}</strong>
+                <span>{template.description}</span>
+              </button>
+            ))}
+          </div>
+          <div className="hintBox">
+            <strong>LocateAnything deploy</strong>
+            <span>
+              Use the LocateAnything preset only on machines with enough GPU memory and a higher latency budget.
+              Keep local ONNX mode for high-FPS fixed-class production paths.
+            </span>
+          </div>
           <textarea value={overrides} onChange={(event) => setOverrides(event.target.value)} />
           {message && <p className="message">{message}</p>}
         </div>

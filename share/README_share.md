@@ -66,12 +66,13 @@ Core pipeline implementations.  See `share/kernel/README.md` for full details.
 |-------------|---------|
 | `trainer/` | YOLO and Faster-RCNN training runners |
 | `infer/` | ONNX inference adapters |
-| `autolabel/` | Model-based and LLM-based autolabeling runners |
+| `autolabel/` | Model-based, LLM-based, and LocateAnything autolabeling runners |
 | `deploy/` | Edge (local/stream/llm) and remote server deploy runners |
 | `export/` | ONNX export and INT-8 quantization |
 | `transport/` | HTTP helpers for stats push and frame streaming |
 | `statistics/` | SQLite-backed statistics store |
 | `llm/` | OpenAI-compatible vision LLM client |
+| `infer/locate_anything.py` | LocateAnything worker wrapper, output parser, and NMS helpers |
 | `media/` | Frame source generator and annotated preview rendering |
 | `utils/` | Structured JSONL logger |
 | `kernel.py` | `VisionKernel` orchestrator |

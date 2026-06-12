@@ -29,7 +29,12 @@ from share.application.autolabel_service import (
     save_autolabel_config,
 )
 from share.config.editing import load_merged_user_config
-from share.config.schema import AUTOLABEL_CONFLICTS, AUTOLABEL_MODEL_BACKENDS, AUTOLABEL_MODES
+from share.config.schema import (
+    AUTOLABEL_CONFLICTS,
+    AUTOLABEL_MODEL_BACKENDS,
+    AUTOLABEL_MODES,
+    LOCATE_ANYTHING_GENERATION_MODES,
+)
 from share.desktop.runners import CliProcessRunner
 from share.desktop.state import PageState
 from share.desktop.widgets.common_form import create_group
@@ -237,9 +242,52 @@ class AutoLabelPage(QWidget):
         limits_form.addRow("Max Images", self.llm_max_images)
         llm_layout.addLayout(limits_form)
 
+        locate_group, locate_layout = create_group("LocateAnything", container)
+        locate_form = QFormLayout()
+        self.locate_anything_model = QLineEdit(locate_group)
+        self.locate_anything_device = QComboBox(locate_group)
+        self.locate_anything_device.addItems(["auto", "cuda", "cuda:0", "cpu"])
+        self.locate_anything_dtype = QComboBox(locate_group)
+        self.locate_anything_dtype.addItems(["auto", "float16", "bfloat16", "float32"])
+        self.locate_anything_generation_mode = QComboBox(locate_group)
+        self.locate_anything_generation_mode.addItems(sorted(LOCATE_ANYTHING_GENERATION_MODES))
+        self.locate_anything_max_new_tokens = QSpinBox(locate_group)
+        self.locate_anything_max_new_tokens.setRange(1, 1000000)
+        self.locate_anything_temperature = QDoubleSpinBox(locate_group)
+        self.locate_anything_temperature.setDecimals(3)
+        self.locate_anything_temperature.setRange(0.0, 10.0)
+        self.locate_anything_temperature.setSingleStep(0.05)
+        self.locate_anything_nms_iou = QDoubleSpinBox(locate_group)
+        self.locate_anything_nms_iou.setDecimals(3)
+        self.locate_anything_nms_iou.setRange(0.0, 1.0)
+        self.locate_anything_nms_iou.setSingleStep(0.01)
+        self.locate_anything_default_score = QDoubleSpinBox(locate_group)
+        self.locate_anything_default_score.setDecimals(3)
+        self.locate_anything_default_score.setRange(0.0, 1.0)
+        self.locate_anything_default_score.setSingleStep(0.01)
+        self.locate_anything_max_images = QSpinBox(locate_group)
+        self.locate_anything_max_images.setRange(0, 1000000)
+        self.locate_anything_verbose = QCheckBox("Verbose raw grounding logs", locate_group)
+        self.locate_anything_prompt_template = QPlainTextEdit(locate_group)
+
+        locate_form.addRow("Model", self.locate_anything_model)
+        locate_form.addRow("Device", self.locate_anything_device)
+        locate_form.addRow("DType", self.locate_anything_dtype)
+        locate_form.addRow("Generation", self.locate_anything_generation_mode)
+        locate_form.addRow("Max New Tokens", self.locate_anything_max_new_tokens)
+        locate_form.addRow("Temperature", self.locate_anything_temperature)
+        locate_form.addRow("NMS IoU", self.locate_anything_nms_iou)
+        locate_form.addRow("Default Score", self.locate_anything_default_score)
+        locate_form.addRow("Max Images", self.locate_anything_max_images)
+        locate_layout.addLayout(locate_form)
+        locate_layout.addWidget(self.locate_anything_verbose)
+        locate_layout.addWidget(QLabel("Prompt Template (must include {class_name})", locate_group))
+        locate_layout.addWidget(self.locate_anything_prompt_template)
+
         layout.addWidget(general_group)
         layout.addWidget(model_group)
         layout.addWidget(llm_group)
+        layout.addWidget(locate_group)
         layout.addStretch(1)
         return container
 
@@ -344,6 +392,45 @@ class AutoLabelPage(QWidget):
         self.llm_max_images.setValue(
             int(_cfg_get(cfg, ("autolabel", "llm", "max_images"), 0))
         )
+        self.locate_anything_model.setText(
+            str(_cfg_get(cfg, ("locate_anything", "model"), "nvidia/LocateAnything-3B"))
+        )
+        self.locate_anything_device.setCurrentText(
+            str(_cfg_get(cfg, ("locate_anything", "device"), "auto"))
+        )
+        self.locate_anything_dtype.setCurrentText(
+            str(_cfg_get(cfg, ("locate_anything", "dtype"), "auto"))
+        )
+        self.locate_anything_generation_mode.setCurrentText(
+            str(_cfg_get(cfg, ("locate_anything", "generation_mode"), "hybrid"))
+        )
+        self.locate_anything_max_new_tokens.setValue(
+            int(_cfg_get(cfg, ("locate_anything", "max_new_tokens"), 8192))
+        )
+        self.locate_anything_temperature.setValue(
+            float(_cfg_get(cfg, ("locate_anything", "temperature"), 0.0))
+        )
+        self.locate_anything_prompt_template.setPlainText(
+            str(
+                _cfg_get(
+                    cfg,
+                    ("locate_anything", "prompt_template"),
+                    "Locate all the instances that match the following description: {class_name}.",
+                )
+            )
+        )
+        self.locate_anything_nms_iou.setValue(
+            float(_cfg_get(cfg, ("locate_anything", "nms_iou"), 0.65))
+        )
+        self.locate_anything_default_score.setValue(
+            float(_cfg_get(cfg, ("locate_anything", "default_score"), 1.0))
+        )
+        self.locate_anything_verbose.setChecked(
+            bool(_cfg_get(cfg, ("locate_anything", "verbose"), False))
+        )
+        self.locate_anything_max_images.setValue(
+            int(_cfg_get(cfg, ("locate_anything", "max_images"), 0))
+        )
 
     def _collect_payload(self) -> dict[str, Any]:
         return {
@@ -368,6 +455,17 @@ class AutoLabelPage(QWidget):
             "llm_retry_backoff_sec": self.llm_retry_backoff_sec.value(),
             "llm_qps_limit": self.llm_qps_limit.value(),
             "llm_max_images": self.llm_max_images.value(),
+            "locate_anything_model": self.locate_anything_model.text().strip(),
+            "locate_anything_device": self.locate_anything_device.currentText(),
+            "locate_anything_dtype": self.locate_anything_dtype.currentText(),
+            "locate_anything_generation_mode": self.locate_anything_generation_mode.currentText(),
+            "locate_anything_max_new_tokens": self.locate_anything_max_new_tokens.value(),
+            "locate_anything_temperature": self.locate_anything_temperature.value(),
+            "locate_anything_prompt_template": self.locate_anything_prompt_template.toPlainText(),
+            "locate_anything_nms_iou": self.locate_anything_nms_iou.value(),
+            "locate_anything_default_score": self.locate_anything_default_score.value(),
+            "locate_anything_verbose": self.locate_anything_verbose.isChecked(),
+            "locate_anything_max_images": self.locate_anything_max_images.value(),
         }
 
     def _collect_overrides(self) -> list[str]:
