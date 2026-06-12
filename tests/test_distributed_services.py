@@ -135,6 +135,55 @@ class DistributedServiceApiTests(unittest.TestCase):
             payload = client.get("/api/v1/nodes").json()
             self.assertEqual(payload["nodes"][0]["status"], "offline")
 
+    def test_control_plane_lists_remote_capabilities(self) -> None:
+        from control_plane.api import create_app
+        from fastapi.testclient import TestClient
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            cfg = {
+                "workspace": {
+                    "root": str(root),
+                    "run_name": "control-test",
+                    "log_file": "log.txt",
+                    "log_level": "INFO",
+                },
+                "server": {
+                    "host": "127.0.0.1",
+                    "port": 7800,
+                    "api_token": "",
+                    "api_token_env_name": "",
+                },
+                "storage": {
+                    "db_path": str(root / "state" / "control.db"),
+                    "artifact_root": str(root / "artifacts"),
+                    "model_registry": str(root / "models" / "registry"),
+                },
+                "nodes": {"offline_ttl_sec": 45},
+            }
+            client = TestClient(create_app(cfg))
+            response = client.post(
+                "/api/v1/nodes/heartbeat",
+                json={
+                    "node_id": "remote-001",
+                    "role": "remote",
+                    "status": "online",
+                    "endpoint": "http://remote:60051",
+                    "capabilities": {
+                        "protocol": "frame_http",
+                        "model_id": "remote:model",
+                        "device": "cuda",
+                    },
+                },
+            )
+            self.assertEqual(response.status_code, 200)
+
+            payload = client.get("/api/v1/nodes").json()
+            node = payload["nodes"][0]
+            self.assertEqual(node["role"], "remote")
+            self.assertEqual(node["payload"]["capabilities"]["protocol"], "frame_http")
+            self.assertEqual(node["payload"]["capabilities"]["device"], "cuda")
+
     def test_train_worker_submits_job(self) -> None:
         from fastapi.testclient import TestClient
         from train_worker.service import create_app

@@ -67,6 +67,11 @@ class DistributedRoleConfigTests(unittest.TestCase):
             self.assertEqual(attached["upstream_job_id"], "upstream-1")
             self.assertEqual(store.list_jobs()[0]["target_role"], "train_worker")
 
+    def test_remote_config_exposes_capabilities(self) -> None:
+        cfg = load_remote(Path("remote_worker/config/config.example.toml").resolve())
+        self.assertEqual(cfg["capabilities"]["protocol"], "frame_http")
+        self.assertEqual(cfg["capabilities"]["model_path"], cfg["runtime"]["model"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -9,6 +9,13 @@ id = "remote-001"
 role = "remote"
 endpoint = ""
 
+[capabilities]
+protocol = "frame_http"
+model_id = ""
+model_path = "../../work-dir/models/exp001/model.onnx"
+device = "auto"
+gpu = "unknown"
+
 [class_map]
 names = ["Kitchen_waste", "Recyclable_waste", "Hazardous_waste", "Other_waste"]
 

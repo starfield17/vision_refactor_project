@@ -24,6 +24,41 @@ from common.application.common import create_logger
 from remote_worker.config.schema import load_config
 
 
+def _gpu_summary() -> str:
+    try:
+        import torch
+    except Exception:
+        return "unavailable"
+    try:
+        if not torch.cuda.is_available():
+            return "none"
+        devices = []
+        for index in range(torch.cuda.device_count()):
+            device = torch.cuda.get_device_properties(index)
+            devices.append(f"cuda:{index}:{device.name}:{device.total_memory}")
+        return ",".join(devices) if devices else "none"
+    except Exception:
+        return "unknown"
+
+
+def enrich_capabilities(role_cfg: dict[str, Any]) -> dict[str, Any]:
+    capabilities = dict(role_cfg.get("capabilities", {}))
+    runtime = role_cfg.get("runtime", {})
+    capabilities["protocol"] = str(capabilities.get("protocol") or "frame_http")
+    capabilities["model_path"] = str(runtime.get("model") or capabilities.get("model_path") or "")
+    capabilities["model_id"] = str(
+        capabilities.get("model_id") or f"remote:{Path(capabilities['model_path']).stem}"
+    )
+    capabilities["device"] = str(
+        capabilities.get("device") or role_cfg.get("train", {}).get("device") or "auto"
+    )
+    if not capabilities.get("gpu") or capabilities["gpu"] == "unknown":
+        capabilities["gpu"] = _gpu_summary()
+    enriched = dict(role_cfg)
+    enriched["capabilities"] = capabilities
+    return enriched
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Remote inference worker API")
     parser.add_argument("--workdir", default=None)
@@ -91,6 +126,7 @@ def main(argv: list[str] | None = None) -> int:
             overrides=args.set,
             workdir_override=str(Path(args.workdir).resolve()) if args.workdir else None,
         )
+        role_cfg = enrich_capabilities(role_cfg)
         server_cfg = {
             "host": role_cfg["runtime"]["listen_host"],
             "port": role_cfg["runtime"]["listen_port"],

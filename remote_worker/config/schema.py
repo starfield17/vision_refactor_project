@@ -12,6 +12,7 @@ from common.config.role_schema import (
     REMOTE_RUNTIME_DEFAULT,
     TRAIN_RUNTIME_DEFAULT,
     WORKSPACE_DEFAULT,
+    expect_type,
     load_role_config,
     validate_class_map,
     validate_control_plane_ref,
@@ -24,6 +25,13 @@ from common.config.role_schema import (
 DEFAULT_CONFIG: dict[str, Any] = {
     "workspace": deepcopy(WORKSPACE_DEFAULT),
     "node": {"id": "remote-001", "role": "remote"},
+    "capabilities": {
+        "protocol": "frame_http",
+        "model_id": "",
+        "model_path": "../../work-dir/models/exp001/model.onnx",
+        "device": "auto",
+        "gpu": "unknown",
+    },
     "class_map": deepcopy(CLASS_MAP_DEFAULT),
     "train": {
         "device": TRAIN_RUNTIME_DEFAULT["device"],
@@ -43,6 +51,7 @@ DEFAULT_CONFIG["runtime"]["model"] = "../../work-dir/models/exp001/model.onnx"
 
 PATH_FIELDS: tuple[tuple[str, ...], ...] = (
     ("workspace", "root"),
+    ("capabilities", "model_path"),
     ("runtime", "model"),
 )
 
@@ -50,6 +59,9 @@ PATH_FIELDS: tuple[tuple[str, ...], ...] = (
 def validate_config(cfg: dict[str, Any]) -> dict[str, Any]:
     validate_workspace(cfg)
     validate_node(cfg, role="remote")
+    capabilities = expect_type(cfg, "capabilities", dict, "root")
+    for key in ("protocol", "model_id", "model_path", "device", "gpu"):
+        expect_type(capabilities, key, str, "capabilities")
     validate_class_map(cfg)
     validate_remote_runtime(cfg["runtime"])
     validate_control_plane_ref(cfg)
