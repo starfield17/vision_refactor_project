@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QSpinBox,
     QSplitter,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -150,7 +151,13 @@ class TrainPage(QWidget):
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(12)
 
-        runtime_group, runtime_layout = create_group("Runtime", container)
+        self.options_tabs = QTabWidget(container)
+
+        self.runtime_tab = QWidget(self.options_tabs)
+        runtime_layout_root = QVBoxLayout(self.runtime_tab)
+        runtime_layout_root.setContentsMargins(12, 12, 12, 12)
+        runtime_layout_root.setSpacing(12)
+        runtime_group, runtime_layout = create_group("Runtime", self.runtime_tab)
         runtime_form = QFormLayout()
         self.backend = QComboBox(runtime_group)
         self.backend.addItems(sorted(TRAIN_BACKENDS))
@@ -174,8 +181,14 @@ class TrainPage(QWidget):
         runtime_form.addRow("Img Size", self.img_size)
         runtime_layout.addLayout(runtime_form)
         runtime_layout.addWidget(self.dry_run)
+        runtime_layout_root.addWidget(runtime_group)
+        runtime_layout_root.addStretch(1)
 
-        yolo_group, yolo_layout = create_group("YOLO", container)
+        self.yolo_tab = QWidget(self.options_tabs)
+        yolo_layout_root = QVBoxLayout(self.yolo_tab)
+        yolo_layout_root.setContentsMargins(12, 12, 12, 12)
+        yolo_layout_root.setSpacing(12)
+        yolo_group, yolo_layout = create_group("YOLO", self.yolo_tab)
         self.yolo_weights = PathPicker(
             "Weights",
             pick_mode="file",
@@ -183,8 +196,14 @@ class TrainPage(QWidget):
             parent=yolo_group,
         )
         yolo_layout.addWidget(self.yolo_weights)
+        yolo_layout_root.addWidget(yolo_group)
+        yolo_layout_root.addStretch(1)
 
-        frcnn_group, frcnn_layout = create_group("Faster R-CNN", container)
+        self.frcnn_tab = QWidget(self.options_tabs)
+        frcnn_layout_root = QVBoxLayout(self.frcnn_tab)
+        frcnn_layout_root.setContentsMargins(12, 12, 12, 12)
+        frcnn_layout_root.setSpacing(12)
+        frcnn_group, frcnn_layout = create_group("Faster R-CNN", self.frcnn_tab)
         frcnn_form = QFormLayout()
         self.frcnn_variant = QComboBox(frcnn_group)
         self.frcnn_variant.addItems(sorted(FASTER_RCNN_VARIANTS))
@@ -211,8 +230,14 @@ class TrainPage(QWidget):
         frcnn_form.addRow("Num Workers", self.frcnn_num_workers)
         frcnn_form.addRow("Max Samples", self.frcnn_max_samples)
         frcnn_layout.addLayout(frcnn_form)
+        frcnn_layout_root.addWidget(frcnn_group)
+        frcnn_layout_root.addStretch(1)
 
-        export_group, export_layout = create_group("Export", container)
+        self.export_tab = QWidget(self.options_tabs)
+        export_layout_root = QVBoxLayout(self.export_tab)
+        export_layout_root.setContentsMargins(12, 12, 12, 12)
+        export_layout_root.setSpacing(12)
+        export_group, export_layout = create_group("Export", self.export_tab)
         export_form = QFormLayout()
         self.export_onnx = QCheckBox("Export ONNX", export_group)
         self.export_quantize = QCheckBox("Quantize", export_group)
@@ -228,12 +253,19 @@ class TrainPage(QWidget):
         export_form.addRow("Quantize Mode", self.export_quantize_mode)
         export_form.addRow("Calib Samples", self.export_calib_samples)
         export_layout.addLayout(export_form)
+        export_layout_root.addWidget(export_group)
+        export_layout_root.addStretch(1)
 
-        layout.addWidget(runtime_group)
-        layout.addWidget(yolo_group)
-        layout.addWidget(frcnn_group)
-        layout.addWidget(export_group)
-        layout.addStretch(1)
+        self.options_tabs.addTab(self.runtime_tab, "Runtime")
+        self.options_tabs.addTab(self.yolo_tab, "YOLO")
+        self.options_tabs.addTab(self.frcnn_tab, "Faster R-CNN")
+        self.options_tabs.addTab(self.export_tab, "Export")
+        layout.addWidget(self.options_tabs, 1)
+
+        self.backend.currentIndexChanged.connect(
+            lambda *_args: self._sync_backend_tabs(select_backend_tab=True)
+        )
+        self._sync_backend_tabs()
         return container
 
     def _build_right_panel(self) -> QWidget:
@@ -333,6 +365,7 @@ class TrainPage(QWidget):
             str(_cfg_get(cfg, ("export", "quantize_mode"), "dynamic"))
         )
         self.export_calib_samples.setValue(int(_cfg_get(cfg, ("export", "calib_samples"), 32)))
+        self._sync_backend_tabs(select_backend_tab=True)
 
     def _collect_payload(self) -> dict[str, Any]:
         return {
@@ -358,6 +391,22 @@ class TrainPage(QWidget):
             "export_quantize_mode": self.export_quantize_mode.currentText(),
             "export_calib_samples": self.export_calib_samples.value(),
         }
+
+    def _set_tab_controls_enabled(self, tab: QWidget, enabled: bool) -> None:
+        for child in tab.findChildren(QWidget):
+            child.setEnabled(enabled)
+
+    def _sync_backend_tabs(self, *_args, select_backend_tab: bool = False) -> None:
+        backend = self.backend.currentText()
+        yolo_enabled = backend == "yolo"
+        frcnn_enabled = backend == "faster_rcnn"
+        self._set_tab_controls_enabled(self.yolo_tab, yolo_enabled)
+        self._set_tab_controls_enabled(self.frcnn_tab, frcnn_enabled)
+        self.options_tabs.setTabEnabled(self.options_tabs.indexOf(self.yolo_tab), yolo_enabled)
+        self.options_tabs.setTabEnabled(self.options_tabs.indexOf(self.frcnn_tab), frcnn_enabled)
+        if select_backend_tab:
+            tab = self.frcnn_tab if frcnn_enabled else self.yolo_tab
+            self.options_tabs.setCurrentWidget(tab)
 
     def _collect_overrides(self) -> list[str]:
         overrides = build_train_overrides_from_payload(self._collect_payload())
@@ -431,4 +480,3 @@ class TrainPage(QWidget):
 
     def _show_info(self, message: str) -> None:
         QMessageBox.information(self, "Train", message)
-

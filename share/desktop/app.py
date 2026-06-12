@@ -7,6 +7,7 @@ import sys
 from PySide6.QtWidgets import QApplication
 
 from share.desktop.main_window import MainWindow
+from share.desktop.theme import apply_theme
 
 
 def launch_gui(default_mode: str = "train", argv: list[str] | None = None) -> int:
@@ -14,6 +15,7 @@ def launch_gui(default_mode: str = "train", argv: list[str] | None = None) -> in
     owns_app = app is None
     if app is None:
         app = QApplication(argv or sys.argv)
+    apply_theme(app)
 
     window = MainWindow(default_mode=default_mode)
     window.show()

@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QSpinBox,
     QSplitter,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -134,12 +135,6 @@ class AutoLabelPage(QWidget):
             placeholder="./work-dir/datasets/unlabeled",
             parent=config_group,
         )
-        self.model_onnx = PathPicker(
-            "ONNX Model",
-            pick_mode="file",
-            placeholder="./work-dir/models/exp/model-int8.onnx",
-            parent=config_group,
-        )
         self.run_name = QLineEdit(config_group)
         self.reload_button = QPushButton("Reload Config", config_group)
         self.save_before_run = QCheckBox("Save Before Run", config_group)
@@ -147,7 +142,6 @@ class AutoLabelPage(QWidget):
         config_layout.addWidget(self.workdir_path)
         config_layout.addWidget(self.labeled_dir)
         config_layout.addWidget(self.unlabeled_dir)
-        config_layout.addWidget(self.model_onnx)
         config_layout.addWidget(QLabel("Run Name", config_group))
         config_layout.addWidget(self.run_name)
         config_layout.addWidget(self.save_before_run)
@@ -171,7 +165,13 @@ class AutoLabelPage(QWidget):
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(12)
 
-        general_group, general_layout = create_group("General", container)
+        self.options_tabs = QTabWidget(container)
+
+        self.general_tab = QWidget(self.options_tabs)
+        general_layout_root = QVBoxLayout(self.general_tab)
+        general_layout_root.setContentsMargins(12, 12, 12, 12)
+        general_layout_root.setSpacing(12)
+        general_group, general_layout = create_group("General", self.general_tab)
         general_form = QFormLayout()
         self.mode = QComboBox(general_group)
         self.mode.addItems(sorted(AUTOLABEL_MODES))
@@ -193,15 +193,34 @@ class AutoLabelPage(QWidget):
         general_form.addRow("On Conflict", self.on_conflict)
         general_layout.addLayout(general_form)
         general_layout.addWidget(self.visualize)
+        general_layout_root.addWidget(general_group)
+        general_layout_root.addStretch(1)
 
-        model_group, model_layout = create_group("Model", container)
+        self.model_tab = QWidget(self.options_tabs)
+        model_layout_root = QVBoxLayout(self.model_tab)
+        model_layout_root.setContentsMargins(12, 12, 12, 12)
+        model_layout_root.setSpacing(12)
+        model_group, model_layout = create_group("Model", self.model_tab)
         model_form = QFormLayout()
         self.model_backend = QComboBox(model_group)
         self.model_backend.addItems(sorted(AUTOLABEL_MODEL_BACKENDS))
+        self.model_onnx = PathPicker(
+            "ONNX Model",
+            pick_mode="file",
+            placeholder="./work-dir/models/exp/model-int8.onnx",
+            parent=model_group,
+        )
         model_form.addRow("Backend", self.model_backend)
         model_layout.addLayout(model_form)
+        model_layout.addWidget(self.model_onnx)
+        model_layout_root.addWidget(model_group)
+        model_layout_root.addStretch(1)
 
-        llm_group, llm_layout = create_group("LLM", container)
+        self.llm_tab = QWidget(self.options_tabs)
+        llm_layout_root = QVBoxLayout(self.llm_tab)
+        llm_layout_root.setContentsMargins(12, 12, 12, 12)
+        llm_layout_root.setSpacing(12)
+        llm_group, llm_layout = create_group("LLM", self.llm_tab)
         llm_form = QFormLayout()
         self.llm_base_url = QLineEdit(llm_group)
         self.llm_model = QLineEdit(llm_group)
@@ -241,8 +260,14 @@ class AutoLabelPage(QWidget):
         limits_form.addRow("QPS Limit", self.llm_qps_limit)
         limits_form.addRow("Max Images", self.llm_max_images)
         llm_layout.addLayout(limits_form)
+        llm_layout_root.addWidget(llm_group)
+        llm_layout_root.addStretch(1)
 
-        locate_group, locate_layout = create_group("LocateAnything", container)
+        self.locate_tab = QWidget(self.options_tabs)
+        locate_layout_root = QVBoxLayout(self.locate_tab)
+        locate_layout_root.setContentsMargins(12, 12, 12, 12)
+        locate_layout_root.setSpacing(12)
+        locate_group, locate_layout = create_group("LocateAnything", self.locate_tab)
         locate_form = QFormLayout()
         self.locate_anything_model = QLineEdit(locate_group)
         self.locate_anything_device = QComboBox(locate_group)
@@ -283,12 +308,19 @@ class AutoLabelPage(QWidget):
         locate_layout.addWidget(self.locate_anything_verbose)
         locate_layout.addWidget(QLabel("Prompt Template (must include {class_name})", locate_group))
         locate_layout.addWidget(self.locate_anything_prompt_template)
+        locate_layout_root.addWidget(locate_group)
+        locate_layout_root.addStretch(1)
 
-        layout.addWidget(general_group)
-        layout.addWidget(model_group)
-        layout.addWidget(llm_group)
-        layout.addWidget(locate_group)
-        layout.addStretch(1)
+        self.options_tabs.addTab(self.general_tab, "General")
+        self.options_tabs.addTab(self.model_tab, "Model")
+        self.options_tabs.addTab(self.llm_tab, "LLM")
+        self.options_tabs.addTab(self.locate_tab, "LocateAnything")
+        layout.addWidget(self.options_tabs, 1)
+
+        self.mode.currentIndexChanged.connect(
+            lambda *_args: self._sync_mode_tabs(select_mode_tab=True)
+        )
+        self._sync_mode_tabs()
         return container
 
     def _build_right_panel(self) -> QWidget:
@@ -431,6 +463,7 @@ class AutoLabelPage(QWidget):
         self.locate_anything_max_images.setValue(
             int(_cfg_get(cfg, ("locate_anything", "max_images"), 0))
         )
+        self._sync_mode_tabs(select_mode_tab=True)
 
     def _collect_payload(self) -> dict[str, Any]:
         return {
@@ -467,6 +500,24 @@ class AutoLabelPage(QWidget):
             "locate_anything_verbose": self.locate_anything_verbose.isChecked(),
             "locate_anything_max_images": self.locate_anything_max_images.value(),
         }
+
+    def _set_tab_controls_enabled(self, tab: QWidget, enabled: bool) -> None:
+        for child in tab.findChildren(QWidget):
+            child.setEnabled(enabled)
+
+    def _sync_mode_tabs(self, *_args, select_mode_tab: bool = False) -> None:
+        mode = self.mode.currentText()
+        tab_by_mode = {
+            "model": self.model_tab,
+            "llm": self.llm_tab,
+            "locate_anything": self.locate_tab,
+        }
+        for mode_name, tab in tab_by_mode.items():
+            enabled = mode == mode_name
+            self._set_tab_controls_enabled(tab, enabled)
+            self.options_tabs.setTabEnabled(self.options_tabs.indexOf(tab), enabled)
+        if select_mode_tab and mode in tab_by_mode:
+            self.options_tabs.setCurrentWidget(tab_by_mode[mode])
 
     def _collect_overrides(self) -> list[str]:
         overrides = build_autolabel_overrides_from_payload(self._collect_payload())
@@ -540,4 +591,3 @@ class AutoLabelPage(QWidget):
 
     def _show_info(self, message: str) -> None:
         QMessageBox.information(self, "AutoLabel", message)
-
