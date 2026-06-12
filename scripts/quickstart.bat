@@ -1,6 +1,6 @@
 @echo off
 setlocal
-pushd "%~dp0" || exit /b 1
+pushd "%~dp0\.." || exit /b 1
 powershell -ExecutionPolicy Bypass -File "scripts\quickstart.ps1" %*
 set EXIT_CODE=%ERRORLEVEL%
 popd

@@ -58,7 +58,7 @@ function Assert-LocalPrerequisites {
     }
     $vitePath = Join-Path $ProjectDir "control_plane\web\node_modules\.bin\vite.cmd"
     if (!(Test-Path $vitePath)) {
-        throw "Control Plane Web dependencies are not installed. Run 'npm --prefix control_plane/web install' before launch.bat up."
+        throw "Control Plane Web dependencies are not installed. Run 'npm --prefix control_plane/web install' before scripts\quickstart.bat up."
     }
 }
 
@@ -384,8 +384,8 @@ function Start-All {
     Write-Host "[OK] Quickstart services are running."
     Write-Host "Control Plane API: http://127.0.0.1:7800"
     Write-Host "Control Plane Web: http://127.0.0.1:$WebPort"
-    Write-Host "Logs: launch.bat logs <service>"
-    Write-Host "Stop: launch.bat down"
+    Write-Host "Logs: scripts\quickstart.bat logs <service>"
+    Write-Host "Stop: scripts\quickstart.bat down"
 }
 
 function Stop-All {
@@ -438,7 +438,7 @@ switch ($Command) {
     "logs" { Show-Logs $Service }
     "podman" { Invoke-PodmanProxy $Service $args[0] }
     "help" {
-        Write-Host "Usage: launch.bat [up|down|restart|status|logs <service>|podman <command> <profile>]"
+        Write-Host "Usage: scripts\quickstart.bat [up|down|restart|status|logs <service>|podman <command> <profile>]"
     }
     default {
         throw "unknown command: $Command"

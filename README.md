@@ -66,17 +66,27 @@ bash scripts/quickstart.sh down
 Windows users can run the same local stack from the repo root:
 
 ```bat
-launch.bat up
-launch.bat status
-launch.bat logs control-plane
-launch.bat down
+scripts\quickstart.bat up
+scripts\quickstart.bat status
+scripts\quickstart.bat logs control-plane
+scripts\quickstart.bat down
 ```
 
 Set `PYTHON` first when Windows should use a specific Python environment:
 
 ```bat
 set PYTHON=C:\path\to\python.exe
-launch.bat up
+scripts\quickstart.bat up
+```
+
+If a terminal was closed before shutdown, terminate quickstart-owned processes:
+
+```bash
+bash scripts/terminate.sh
+```
+
+```bat
+scripts\terminate.bat
 ```
 
 Use Podman through the same shortcut when you want containers:
@@ -87,7 +97,7 @@ bash scripts/quickstart.sh podman logs all-in-one
 bash scripts/quickstart.sh podman down all-in-one
 ```
 
-On Windows, use `launch.bat podman up all-in-one` when Git Bash or another `bash`
+On Windows, use `scripts\quickstart.bat podman up all-in-one` when Git Bash or another `bash`
 provider is available for the Podman helper script.
 
 ## Role Configs

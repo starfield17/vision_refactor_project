@@ -122,14 +122,25 @@ The default local stack starts Control Plane, statistics, train worker, autolabe
 edge agent, and the Control Plane Web dev server. It does not start `remote_worker` unless
 `QUICKSTART_REMOTE=1` is set, because remote inference usually needs a local model/GPU setup.
 
-Windows uses `launch.bat`, which delegates to `scripts/quickstart.ps1` with the same
+Windows uses `scripts\quickstart.bat`, which delegates to `scripts\quickstart.ps1` with the same
 local commands:
 
 ```bat
-launch.bat up
-launch.bat status
-launch.bat logs train-worker
-launch.bat down
+scripts\quickstart.bat up
+scripts\quickstart.bat status
+scripts\quickstart.bat logs train-worker
+scripts\quickstart.bat down
+```
+
+If quickstart-owned background processes survive a closed terminal, use the terminate
+helpers:
+
+```bash
+bash scripts/terminate.sh
+```
+
+```bat
+scripts\terminate.bat
 ```
 
 ## Local Archive
