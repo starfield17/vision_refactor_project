@@ -132,6 +132,19 @@ scripts\quickstart.bat logs train-worker
 scripts\quickstart.bat down
 ```
 
+Install Control Plane Web dependencies on the same OS that will run the Web dev server.
+For Windows PowerShell:
+
+```powershell
+Push-Location control_plane\web
+npm install
+Pop-Location
+```
+
+Do not copy `control_plane\web\node_modules` between WSL/Linux and Windows. Rollup and
+Vite use platform-specific optional native packages, and copied modules can fail with an
+invalid Win32 native module error.
+
 If quickstart-owned background processes survive a closed terminal, use the terminate
 helpers:
 

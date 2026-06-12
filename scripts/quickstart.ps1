@@ -49,6 +49,27 @@ function Test-CommandAvailable($File, $Argument) {
     }
 }
 
+function Test-ControlPlaneWebDependencies {
+    $stdoutPath = [System.IO.Path]::GetTempFileName()
+    $stderrPath = [System.IO.Path]::GetTempFileName()
+    $pushed = $false
+    try {
+        Push-Location (Join-Path $ProjectDir "control_plane\web")
+        $pushed = $true
+        & npm exec vite -- --version > $stdoutPath 2> $stderrPath
+        return $LASTEXITCODE -eq 0
+    }
+    catch {
+        return $false
+    }
+    finally {
+        if ($pushed) {
+            Pop-Location
+        }
+        Remove-Item -Force $stdoutPath, $stderrPath -ErrorAction SilentlyContinue
+    }
+}
+
 function Assert-LocalPrerequisites {
     if (!(Test-CommandAvailable $PythonBin "--version")) {
         throw "Python is not runnable as '$PythonBin'. Set PYTHON to a Windows Python with project dependencies, or use bash scripts/quickstart.sh inside WSL."
@@ -58,7 +79,20 @@ function Assert-LocalPrerequisites {
     }
     $vitePath = Join-Path $ProjectDir "control_plane\web\node_modules\.bin\vite.cmd"
     if (!(Test-Path $vitePath)) {
-        throw "Control Plane Web dependencies are not installed. Run 'pushd control_plane\web && npm install && popd' before scripts\quickstart.bat up."
+        throw "Control Plane Web dependencies are not installed. Run 'Push-Location control_plane\web; npm install; Pop-Location' before scripts\quickstart.bat up."
+    }
+    if (!(Test-ControlPlaneWebDependencies)) {
+        throw @"
+Control Plane Web dependencies are installed but not runnable on this Windows Node.js environment.
+This usually means control_plane\web\node_modules was copied from WSL/Linux, or npm missed Rollup's Windows optional dependency.
+Run these commands from the repo root:
+
+Remove-Item -Recurse -Force control_plane\web\node_modules
+Push-Location control_plane\web
+npm install
+Pop-Location
+scripts\quickstart.bat up
+"@
     }
 }
 

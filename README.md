@@ -72,13 +72,20 @@ scripts\quickstart.bat logs control-plane
 scripts\quickstart.bat down
 ```
 
-Set `PYTHON` first when Windows should use a specific Python environment:
+Set `PYTHON` first when Windows should use a specific Python environment. In
+PowerShell, install the Web dependencies from the Web directory:
 
-```bat
-set PYTHON=C:\path\to\python.exe
-pushd control_plane\web && npm install && popd
+```powershell
+$env:PYTHON = "C:\path\to\python.exe"
+Push-Location control_plane\web
+npm install
+Pop-Location
 scripts\quickstart.bat up
 ```
+
+Do not share `control_plane\web\node_modules` between WSL/Linux and Windows. If
+Vite/Rollup reports an invalid Win32 native module, remove that directory and run
+`npm install` again on Windows.
 
 If a terminal was closed before shutdown, terminate quickstart-owned processes:
 
@@ -214,6 +221,15 @@ The active web UI lives under the Control Plane:
 cd control_plane/web
 npm install
 npm run dev
+```
+
+On Windows PowerShell:
+
+```powershell
+Push-Location control_plane\web
+npm install
+npm run dev
+Pop-Location
 ```
 
 Set `VITE_CONTROL_PLANE_API_URL` when the API is not on `http://127.0.0.1:7800`.
