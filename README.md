@@ -29,6 +29,53 @@ Use an activated Python environment with the project dependencies installed:
 python -m pytest -q
 ```
 
+## Quick Start
+
+Run the local development stack in the background:
+
+```bash
+bash scripts/quickstart.sh up
+bash scripts/quickstart.sh status
+```
+
+Defaults:
+
+```text
+Control Plane API: http://127.0.0.1:7800
+Control Plane Web: http://127.0.0.1:5173
+Statistics API: http://127.0.0.1:7803
+Train Worker: http://127.0.0.1:7811
+AutoLabel Worker: http://127.0.0.1:7812
+Edge Agent: http://127.0.0.1:7813
+```
+
+Logs and shutdown:
+
+```bash
+bash scripts/quickstart.sh logs control-plane
+bash scripts/quickstart.sh down
+```
+
+Windows users can run the same local stack from the repo root:
+
+```bat
+launch.bat up
+launch.bat status
+launch.bat logs control-plane
+launch.bat down
+```
+
+Use Podman through the same shortcut when you want containers:
+
+```bash
+bash scripts/quickstart.sh podman up all-in-one
+bash scripts/quickstart.sh podman logs all-in-one
+bash scripts/quickstart.sh podman down all-in-one
+```
+
+On Windows, use `launch.bat podman up all-in-one` when Git Bash or another `bash`
+provider is available for the Podman helper script.
+
 ## Role Configs
 
 Each role config is independent:

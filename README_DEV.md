@@ -102,6 +102,33 @@ Use `bash deployments/install.sh doctor <profile>` before starting a profile. Th
 validates Podman/compose availability, creates a local ignored `.env`, generates missing
 local tokens, checks common port conflicts, and renders the compose config.
 
+## Quickstart Script
+
+`scripts/quickstart.sh` starts the local development stack as background processes.
+It writes PID files and logs under `work-dir/tmp/quickstart/`, and it uses
+`${PYTHON:-python}` so developers can select an interpreter without committing local paths:
+
+```bash
+PYTHON=/path/to/python bash scripts/quickstart.sh up
+bash scripts/quickstart.sh status
+bash scripts/quickstart.sh logs train-worker
+bash scripts/quickstart.sh down
+```
+
+The default local stack starts Control Plane, statistics, train worker, autolabel worker,
+edge agent, and the Control Plane Web dev server. It does not start `remote_worker` unless
+`QUICKSTART_REMOTE=1` is set, because remote inference usually needs a local model/GPU setup.
+
+Windows uses `launch.bat`, which delegates to `scripts/quickstart.ps1` with the same
+local commands:
+
+```bat
+launch.bat up
+launch.bat status
+launch.bat logs train-worker
+launch.bat down
+```
+
 ## Local Archive
 
 Pre-distributed code lives under `archive/legacy_pre_distributed/` for local reference
