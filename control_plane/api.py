@@ -181,6 +181,45 @@ def create_app(cfg: dict[str, Any]):
             return denied
         return {"ok": True, "models": _read_model_manifests(Path(cfg["storage"]["model_registry"]))}
 
+    @app.get("/api/v1/statistics/dashboard")
+    def statistics_dashboard(
+        limit: int = Query(default=200),
+        source_id: str = Query(default=""),
+        min_detections: int = Query(default=0),
+        authorization: str | None = Header(default=None),
+    ):
+        denied = auth(authorization)
+        if denied:
+            return denied
+        node = _choose_node(
+            store,
+            target_role="statistics",
+            offline_ttl_sec=offline_ttl_sec,
+        )
+        if node is None:
+            return json_response(
+                {
+                    "ok": False,
+                    "error": "no_statistics_service",
+                    "detail": "no online statistics node is registered",
+                },
+                503,
+            )
+        try:
+            return get_json(
+                node["endpoint"],
+                "/api/v1/statistics/dashboard",
+                query={
+                    "limit": limit,
+                    "source_id": source_id,
+                    "min_detections": min_detections,
+                },
+                token=_node_dispatch_token(node),
+                timeout_sec=5.0,
+            )
+        except TransportError as exc:
+            return json_response({"ok": False, "error": "upstream_failed", "detail": str(exc)}, 502)
+
     @app.get("/api/v1/workers/status")
     def workers_status(authorization: str | None = Header(default=None)):
         denied = auth(authorization)

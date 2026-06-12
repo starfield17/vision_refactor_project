@@ -11,6 +11,7 @@ import {
   RadioTower,
   RefreshCw,
   Server,
+  Sigma,
   Settings,
   Square,
 } from "lucide-react";
@@ -44,6 +45,20 @@ type WorkerStatus = {
   node: NodeRecord;
   status?: Record<string, unknown>;
   error?: string;
+};
+
+type StatisticsDashboard = {
+  overview?: {
+    events_total?: number;
+    detections_total?: number;
+    avg_latency_ms?: number;
+  };
+  filtered_summary?: {
+    events_total?: number;
+    detections_total?: number;
+    avg_latency_ms?: number;
+  };
+  sources?: string[];
 };
 
 const apiBase = (import.meta.env.VITE_CONTROL_PLANE_API_URL || "http://127.0.0.1:7800").replace(
@@ -102,6 +117,7 @@ function App() {
   const [jobs, setJobs] = useState<JobRecord[]>([]);
   const [workers, setWorkers] = useState<WorkerStatus[]>([]);
   const [models, setModels] = useState<Record<string, unknown>[]>([]);
+  const [statistics, setStatistics] = useState<StatisticsDashboard | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [jobKind, setJobKind] = useState("train");
@@ -129,6 +145,14 @@ function App() {
       setJobs(jobData.jobs || []);
       setWorkers(workerData.workers || []);
       setModels(modelData.models || []);
+      try {
+        const statsData = await apiGet<{ ok: boolean; dashboard: StatisticsDashboard }>(
+          "/api/v1/statistics/dashboard",
+        );
+        setStatistics(statsData.dashboard || null);
+      } catch {
+        setStatistics(null);
+      }
     } catch (exc) {
       setError(exc instanceof Error ? exc.message : String(exc));
     } finally {
@@ -193,6 +217,7 @@ function App() {
           ["nodes", Server, "Nodes"],
           ["jobs", Boxes, "Jobs"],
           ["models", Database, "Models"],
+          ["statistics", Sigma, "Statistics"],
           ["logs", FileText, "Logs"],
           ["settings", Settings, "Settings"],
         ].map(([id, Icon, label]) => {
@@ -227,6 +252,11 @@ function App() {
               <Stat label="Active Jobs" value={counts.active} icon={<Activity size={18} />} />
               <Stat label="Failed Jobs" value={counts.failed} icon={<CircleDot size={18} />} />
               <Stat label="Model Manifests" value={models.length} icon={<Database size={18} />} />
+              <Stat
+                label="Detections"
+                value={statistics?.overview?.detections_total ?? 0}
+                icon={<Sigma size={18} />}
+              />
             </section>
 
             <section className="panel">
@@ -260,6 +290,7 @@ function App() {
         {tab === "nodes" ? <NodeTable nodes={nodes} workers={workers} /> : null}
         {tab === "jobs" ? <JobTable jobs={jobs} onCancel={cancelJob} onLogs={loadLogs} /> : null}
         {tab === "models" ? <ModelTable models={models} /> : null}
+        {tab === "statistics" ? <StatisticsPanel dashboard={statistics} /> : null}
         {tab === "logs" ? <pre className="logs">{logs || "No log selected."}</pre> : null}
         {tab === "settings" ? (
           <section className="panel">
@@ -300,6 +331,7 @@ function NodeTable({ nodes, workers }: { nodes: NodeRecord[]; workers: WorkerSta
               <th>Node</th>
               <th>Role</th>
               <th>Endpoint</th>
+              <th>Capabilities</th>
               <th>Worker</th>
               <th>Last Seen</th>
             </tr>
@@ -313,17 +345,30 @@ function NodeTable({ nodes, workers }: { nodes: NodeRecord[]; workers: WorkerSta
                   <td className="mono">{node.node_id}</td>
                   <td>{node.role}</td>
                   <td className="mono clip">{node.endpoint}</td>
+                  <td className="mono clip">{capabilityText(node)}</td>
                   <td>{worker?.ok ? "reachable" : worker?.error || "pending"}</td>
                   <td className="mono">{node.last_seen_utc}</td>
                 </tr>
               );
             })}
-            {!nodes.length ? <tr><td colSpan={6} className="empty">No registered nodes.</td></tr> : null}
+            {!nodes.length ? <tr><td colSpan={7} className="empty">No registered nodes.</td></tr> : null}
           </tbody>
         </table>
       </div>
     </section>
   );
+}
+
+function capabilityText(node: NodeRecord): string {
+  const capabilities = node.payload?.capabilities;
+  if (!capabilities || typeof capabilities !== "object") {
+    return "-";
+  }
+  return Object.entries(capabilities as Record<string, unknown>)
+    .filter(([, value]) => value !== "" && value !== undefined && value !== null)
+    .slice(0, 4)
+    .map(([key, value]) => `${key}=${String(value)}`)
+    .join(", ");
 }
 
 function JobTable({
@@ -406,6 +451,40 @@ function ModelTable({ models }: { models: Record<string, unknown>[] }) {
           </tbody>
         </table>
       </div>
+    </section>
+  );
+}
+
+function StatisticsPanel({ dashboard }: { dashboard: StatisticsDashboard | null }) {
+  const overview = dashboard?.overview;
+  const filtered = dashboard?.filtered_summary;
+  return (
+    <section className="panel">
+      <div className="panelHead">
+        <h2>Statistics</h2>
+      </div>
+      {dashboard ? (
+        <div className="statsGrid">
+          <Stat label="Events" value={overview?.events_total ?? 0} icon={<Activity size={18} />} />
+          <Stat label="Detections" value={overview?.detections_total ?? 0} icon={<Sigma size={18} />} />
+          <Stat
+            label="Avg Latency"
+            value={overview?.avg_latency_ms?.toFixed?.(1) ?? 0}
+            icon={<CircleDot size={18} />}
+          />
+          <Stat label="Sources" value={dashboard.sources?.length ?? 0} icon={<Server size={18} />} />
+          <div className="summaryBlock">
+            <span>Filtered Events</span>
+            <strong>{filtered?.events_total ?? 0}</strong>
+          </div>
+          <div className="summaryBlock">
+            <span>Filtered Detections</span>
+            <strong>{filtered?.detections_total ?? 0}</strong>
+          </div>
+        </div>
+      ) : (
+        <div className="empty">No online statistics service is registered.</div>
+      )}
     </section>
   );
 }
