@@ -56,6 +56,10 @@ function Assert-LocalPrerequisites {
     if (!(Test-CommandAvailable "npm" "--version")) {
         throw "npm is not runnable. Install Node.js/npm on Windows, or use bash scripts/quickstart.sh inside WSL."
     }
+    $vitePath = Join-Path $ProjectDir "control_plane\web\node_modules\.bin\vite.cmd"
+    if (!(Test-Path $vitePath)) {
+        throw "Control Plane Web dependencies are not installed. Run 'npm --prefix control_plane/web install' before launch.bat up."
+    }
 }
 
 function Get-ServiceNames {
@@ -237,25 +241,21 @@ function Stop-ProcessTree($ProcessId, [bool]$Force = $false) {
 }
 
 function Test-Health($Name) {
-    $handler = $null
-    $client = $null
+    $response = $null
     try {
-        $handler = [System.Net.Http.HttpClientHandler]::new()
-        $handler.UseProxy = $false
-        $client = [System.Net.Http.HttpClient]::new($handler)
-        $client.Timeout = [TimeSpan]::FromSeconds(2)
-        $response = $client.GetAsync((Get-HealthUrl $Name)).GetAwaiter().GetResult()
+        $request = [System.Net.WebRequest]::Create((Get-HealthUrl $Name))
+        $request.Method = "GET"
+        $request.Proxy = $null
+        $request.Timeout = 2000
+        $response = $request.GetResponse()
         return [int]$response.StatusCode -lt 500
     }
     catch {
         return $false
     }
     finally {
-        if ($client) {
-            $client.Dispose()
-        }
-        if ($handler) {
-            $handler.Dispose()
+        if ($response) {
+            $response.Dispose()
         }
     }
 }
