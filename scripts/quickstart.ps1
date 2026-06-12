@@ -58,7 +58,7 @@ function Assert-LocalPrerequisites {
     }
     $vitePath = Join-Path $ProjectDir "control_plane\web\node_modules\.bin\vite.cmd"
     if (!(Test-Path $vitePath)) {
-        throw "Control Plane Web dependencies are not installed. Run 'npm --prefix control_plane/web install' before scripts\quickstart.bat up."
+        throw "Control Plane Web dependencies are not installed. Run 'pushd control_plane\web && npm install && popd' before scripts\quickstart.bat up."
     }
 }
 
@@ -203,7 +203,7 @@ function Get-ServiceSpec($Name) {
                     "-ExecutionPolicy",
                     "Bypass",
                     "-Command",
-                    "npm --prefix control_plane/web run dev -- --port $WebPort --strictPort"
+                    "Set-Location control_plane/web; npm run dev -- --port $WebPort --strictPort"
                 )
                 Env = @{ VITE_CONTROL_PLANE_API_URL = "http://127.0.0.1:7800" }
             }

@@ -76,6 +76,7 @@ Set `PYTHON` first when Windows should use a specific Python environment:
 
 ```bat
 set PYTHON=C:\path\to\python.exe
+pushd control_plane\web && npm install && popd
 scripts\quickstart.bat up
 ```
 
@@ -210,8 +211,9 @@ curl -X POST http://127.0.0.1:7800/api/v1/jobs \
 The active web UI lives under the Control Plane:
 
 ```bash
-npm --prefix control_plane/web install
-npm --prefix control_plane/web run dev
+cd control_plane/web
+npm install
+npm run dev
 ```
 
 Set `VITE_CONTROL_PLANE_API_URL` when the API is not on `http://127.0.0.1:7800`.

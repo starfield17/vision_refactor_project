@@ -55,6 +55,7 @@ is_project_process() {
     *" -m edge_agent.service"*|\
     *" -m remote_worker.api"*|\
     *"npm --prefix control_plane/web run dev"*|\
+    *"npm run dev -- --port ${WEB_PORT} --strictPort"*|\
     *"vite --host 0.0.0.0 --port ${WEB_PORT}"*|\
     *"node_modules/.bin/vite"*" --port ${WEB_PORT}"*|\
     *"node_modules/vite/bin/vite.js"*" --port ${WEB_PORT}"*)
@@ -145,6 +146,7 @@ terminate_known_processes() {
     "python -m edge_agent.service"
     "python -m remote_worker.api"
     "npm --prefix control_plane/web run dev"
+    "npm run dev -- --port ${WEB_PORT} --strictPort"
     "vite --host 0.0.0.0 --port ${WEB_PORT}"
     "node_modules/.bin/vite"
     "node_modules/vite/bin/vite.js"

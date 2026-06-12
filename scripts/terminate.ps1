@@ -74,6 +74,7 @@ function Test-QuickstartProcess($Process) {
         $command.Contains(" -m edge_agent.service") -or
         $command.Contains(" -m remote_worker.api") -or
         $command.Contains("npm --prefix control_plane/web run dev") -or
+        $command.Contains("npm run dev -- --port $WebPort --strictPort") -or
         $command.Contains("vite --host 0.0.0.0 --port $WebPort") -or
         ($command.Contains("node_modules\.bin\vite") -and $command.Contains("--port $WebPort")) -or
         ($command.Contains("node_modules\vite\bin\vite.js") -and $command.Contains("--port $WebPort"))
