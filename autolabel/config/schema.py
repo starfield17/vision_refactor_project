@@ -1,4 +1,4 @@
-"""Autolabel worker configuration."""
+"""AutoLabel local tool configuration."""
 
 from __future__ import annotations
 
@@ -15,17 +15,13 @@ from common.config.role_schema import (
     load_role_config,
     validate_autolabel_runtime,
     validate_class_map,
-    validate_control_plane_ref,
-    validate_job_store,
     validate_locate_anything,
-    validate_node,
     validate_workspace,
 )
 
 
 DEFAULT_CONFIG: dict[str, Any] = {
     "workspace": deepcopy(WORKSPACE_DEFAULT),
-    "node": {"id": "autolabel-worker-001", "role": "autolabel_worker", "endpoint": ""},
     "class_map": deepcopy(CLASS_MAP_DEFAULT),
     "data": {
         "labeled_dir": "../../work-dir/datasets/labeled",
@@ -38,20 +34,6 @@ DEFAULT_CONFIG: dict[str, Any] = {
     },
     "runtime": deepcopy(AUTOLABEL_RUNTIME_DEFAULT),
     "locate_anything": deepcopy(LOCATE_ANYTHING_DEFAULT),
-    "server": {
-        "host": "127.0.0.1",
-        "port": 7812,
-        "api_token": "",
-        "api_token_env_name": "VISION_AUTOLABEL_WORKER_API_TOKEN",
-        "advertise_url": "",
-    },
-    "job_store": {"db_path": "../../work-dir/state/autolabel_worker_jobs.db"},
-    "control_plane": {
-        "url": "http://127.0.0.1:7800",
-        "api_token": "",
-        "api_token_env_name": "VISION_CONTROL_PLANE_API_TOKEN",
-        "heartbeat_interval_sec": 15,
-    },
 }
 DEFAULT_CONFIG["runtime"]["model"]["onnx_model"] = "../../work-dir/models/exp001/model-int8.onnx"
 
@@ -60,18 +42,14 @@ PATH_FIELDS: tuple[tuple[str, ...], ...] = (
     ("data", "labeled_dir"),
     ("data", "unlabeled_dir"),
     ("runtime", "model", "onnx_model"),
-    ("job_store", "db_path"),
 )
 
 
 def validate_config(cfg: dict[str, Any]) -> dict[str, Any]:
     validate_workspace(cfg)
-    validate_node(cfg, role="autolabel_worker")
     validate_class_map(cfg)
     validate_autolabel_runtime(cfg["runtime"])
     validate_locate_anything(cfg["locate_anything"])
-    validate_job_store(cfg)
-    validate_control_plane_ref(cfg)
     return cfg
 
 

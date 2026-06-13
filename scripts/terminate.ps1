@@ -23,8 +23,6 @@ function Get-ServiceNames {
     @(
         "control-plane",
         "statistics",
-        "train-worker",
-        "autolabel-worker",
         "edge-agent",
         "control-plane-web",
         "remote-worker"
@@ -35,8 +33,6 @@ function Get-ServicePort($Name) {
     switch ($Name) {
         "control-plane" { 7800 }
         "statistics" { 7803 }
-        "train-worker" { 7811 }
-        "autolabel-worker" { 7812 }
         "edge-agent" { 7813 }
         "remote-worker" { 60051 }
         "control-plane-web" { $WebPort }
@@ -69,8 +65,6 @@ function Test-QuickstartProcess($Process) {
     return (
         $command.Contains(" -m control_plane.api") -or
         $command.Contains(" -m stats_service.api") -or
-        $command.Contains(" -m train_worker.service") -or
-        $command.Contains(" -m autolabel_worker.service") -or
         $command.Contains(" -m edge_agent.service") -or
         $command.Contains(" -m remote_worker.api") -or
         $command.Contains("npm --prefix control_plane/web run dev") -or

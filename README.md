@@ -9,8 +9,8 @@ own config, API surface, and optional web entry instead of sharing one global co
 common/             Shared API, config, job, and type helpers
 core/               Vision kernel, training, inference, deploy, statistics logic
 control_plane/      Control Plane API, SQLite state, and Web UI
-train_worker/       Train worker API, CLI, worker process, role config
-autolabel_worker/   Auto-label worker API, CLI, worker process, role config
+train/              Local PySide6/CLI training tool and role-local config
+autolabel/          Local PySide6/CLI auto-labeling tool and role-local config
 edge_agent/         Edge agent API/CLI/worker for local camera/video/image runs
 remote_worker/      Remote inference API for GPU/offloaded frame inference
 stats_service/      Statistics ingest and dashboard API
@@ -18,8 +18,8 @@ deployments/        Podman compose profiles and install script
 archive/            Local-only archived pre-distributed code, ignored by git
 ```
 
-Old top-level `train/`, `autolabel/`, `deploy/`, `services/`, `share/`, and `web/`
-code has been moved to `archive/legacy_pre_distributed/` and is intentionally ignored.
+Old pre-distributed code has been moved to `archive/legacy_pre_distributed/` and is
+intentionally ignored.
 
 ## Python Environment
 
@@ -51,8 +51,6 @@ Defaults:
 Control Plane API: http://127.0.0.1:7800
 Control Plane Web: http://127.0.0.1:5173
 Statistics API: http://127.0.0.1:7803
-Train Worker: http://127.0.0.1:7811
-AutoLabel Worker: http://127.0.0.1:7812
 Edge Agent: http://127.0.0.1:7813
 ```
 
@@ -114,29 +112,44 @@ Each role config is independent:
 
 ```text
 control_plane/config/config.example.toml
-train_worker/config/config.example.toml
-autolabel_worker/config/config.example.toml
+train/config/config.example.toml
+autolabel/config/config.example.toml
 edge_agent/config/config.example.toml
 remote_worker/config/config.example.toml
 stats_service/config/config.example.toml
 ```
 
-Important sections:
+Local production tool configs use:
 
 ```text
-[workspace]       Role-local workspace and logging
+[workspace]       Local workspace and logging
+[class_map]       Class names and numeric ids
+[data]            Dataset/input/output roots
+[runtime]         Train or auto-label runtime settings
+```
+
+Distributed runtime configs additionally use:
+
+```text
 [node]            Node identity registered with the Control Plane
 [server]          HTTP bind address, port, auth token, advertised URL
 [job_store]       SQLite job state for roles that run jobs
 [control_plane]   Control Plane URL/token for node registration
-[runtime]         Role-specific train/autolabel/edge/remote/statistics runtime
 ```
 
-The worker CLIs and APIs accept overrides with role-local keys, for example:
+`train` and `autolabel` are local production tools. They do not register as distributed
+nodes and are not started by quickstart or Podman. Run them locally:
 
 ```bash
-python -m train_worker.cli \
-  --config train_worker/config/config.example.toml \
+python -m train.main --gui
+python -m autolabel.main --gui
+```
+
+Their CLIs accept role-local overrides:
+
+```bash
+python -m train.main --cli \
+  --config train/config/config.example.toml \
   --set runtime.dry_run=true \
   --json-summary
 ```
@@ -150,15 +163,9 @@ python -m control_plane.api \
   --config control_plane/config/config.example.toml
 ```
 
-Start workers:
+Start runtime services:
 
 ```bash
-python -m train_worker.service \
-  --config train_worker/config/config.example.toml
-
-python -m autolabel_worker.service \
-  --config autolabel_worker/config/config.example.toml
-
 python -m edge_agent.service \
   --config edge_agent/config/config.example.toml
 
@@ -166,12 +173,7 @@ python -m stats_service.api \
   --config stats_service/config/config.example.toml
 ```
 
-Workers register with the Control Plane on startup when `[control_plane].url` is set.
-They can also be registered manually:
-
-```bash
-curl -X POST http://127.0.0.1:7811/api/v1/nodes/register
-```
+Runtime nodes register with the Control Plane on startup when `[control_plane].url` is set.
 
 Control Plane endpoints:
 
@@ -187,22 +189,6 @@ GET  /api/v1/jobs/{job_id}
 GET  /api/v1/jobs/{job_id}/logs
 POST /api/v1/jobs/{job_id}/cancel
 GET  /api/v1/models
-```
-
-Submit a train job through the Control Plane:
-
-```bash
-curl -X POST http://127.0.0.1:7800/api/v1/jobs \
-  -H 'Content-Type: application/json' \
-  -d '{"kind":"train","payload":{"dry_run":true}}'
-```
-
-Submit an auto-label job:
-
-```bash
-curl -X POST http://127.0.0.1:7800/api/v1/jobs \
-  -H 'Content-Type: application/json' \
-  -d '{"kind":"autolabel","payload":{"mode":"model"}}'
 ```
 
 Submit an edge run:
@@ -264,8 +250,6 @@ and `remote-gpu`; supported commands are `install`, `up`, `down`, `restart`,
 control-plane
 control-plane-web
 statistics
-train-worker
-autolabel-worker
 edge-agent
 ```
 

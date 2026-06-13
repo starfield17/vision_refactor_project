@@ -18,8 +18,6 @@ service_names() {
   printf '%s\n' \
     control-plane \
     statistics \
-    train-worker \
-    autolabel-worker \
     edge-agent \
     control-plane-web \
     remote-worker
@@ -29,8 +27,6 @@ service_port() {
   case "$1" in
     control-plane) echo "7800" ;;
     statistics) echo "7803" ;;
-    train-worker) echo "7811" ;;
-    autolabel-worker) echo "7812" ;;
     edge-agent) echo "7813" ;;
     remote-worker) echo "60051" ;;
     control-plane-web) echo "$WEB_PORT" ;;
@@ -50,8 +46,6 @@ is_project_process() {
   case "$command" in
     *" -m control_plane.api"*|\
     *" -m stats_service.api"*|\
-    *" -m train_worker.service"*|\
-    *" -m autolabel_worker.service"*|\
     *" -m edge_agent.service"*|\
     *" -m remote_worker.api"*|\
     *"npm --prefix control_plane/web run dev"*|\
@@ -141,8 +135,6 @@ terminate_known_processes() {
   local patterns=(
     "python -m control_plane.api"
     "python -m stats_service.api"
-    "python -m train_worker.service"
-    "python -m autolabel_worker.service"
     "python -m edge_agent.service"
     "python -m remote_worker.api"
     "npm --prefix control_plane/web run dev"

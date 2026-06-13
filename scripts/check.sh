@@ -7,8 +7,8 @@ PY_TARGETS=(
   common
   core
   control_plane
-  train_worker
-  autolabel_worker
+  train
+  autolabel
   edge_agent
   remote_worker
   stats_service
@@ -20,8 +20,8 @@ COMPILE_TARGETS=(
   common
   core
   control_plane
-  train_worker
-  autolabel_worker
+  train
+  autolabel
   edge_agent
   remote_worker
   stats_service

@@ -120,8 +120,9 @@ function App() {
   const [statistics, setStatistics] = useState<StatisticsDashboard | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [jobKind, setJobKind] = useState("train");
-  const [jobPayload, setJobPayload] = useState("{\n  \"dry_run\": true\n}");
+  const [edgePayload, setEdgePayload] = useState(
+    "{\n  \"mode\": \"local\",\n  \"source\": \"images\",\n  \"max_frames\": 20\n}",
+  );
   const [logs, setLogs] = useState("");
 
   const counts = useMemo(() => {
@@ -160,12 +161,12 @@ function App() {
     }
   }
 
-  async function submitJob() {
+  async function submitEdgeRun() {
     setBusy(true);
     setError("");
     try {
-      const payload = JSON.parse(jobPayload) as Record<string, unknown>;
-      await apiPost("/api/v1/jobs", { kind: jobKind, payload });
+      const payload = JSON.parse(edgePayload) as Record<string, unknown>;
+      await apiPost("/api/v1/jobs", { kind: "edge_run", payload });
       await refresh();
       setTab("jobs");
     } catch (exc) {
@@ -261,24 +262,16 @@ function App() {
 
             <section className="panel">
               <div className="panelHead">
-                <h2>Submit Job</h2>
-                <button className="primary" onClick={() => void submitJob()} disabled={busy} title="Submit job">
+                <h2>Submit Edge Run</h2>
+                <button className="primary" onClick={() => void submitEdgeRun()} disabled={busy} title="Submit edge run">
                   <Play size={17} />
                   <span>Submit</span>
                 </button>
               </div>
               <div className="formGrid">
-                <label>
-                  <span>Kind</span>
-                  <select value={jobKind} onChange={(event) => setJobKind(event.target.value)}>
-                    <option value="train">train</option>
-                    <option value="autolabel">autolabel</option>
-                    <option value="edge_run">edge_run</option>
-                  </select>
-                </label>
                 <label className="payload">
                   <span>Payload JSON</span>
-                  <textarea value={jobPayload} onChange={(event) => setJobPayload(event.target.value)} />
+                  <textarea value={edgePayload} onChange={(event) => setEdgePayload(event.target.value)} />
                 </label>
               </div>
             </section>

@@ -54,8 +54,6 @@ service_names() {
   printf '%s\n' \
     control-plane \
     statistics \
-    train-worker \
-    autolabel-worker \
     edge-agent \
     control-plane-web
   if [[ "${QUICKSTART_REMOTE:-0}" == "1" ]]; then
@@ -75,8 +73,6 @@ health_url() {
   case "$1" in
     control-plane) echo "http://127.0.0.1:7800/health" ;;
     statistics) echo "http://127.0.0.1:7803/health" ;;
-    train-worker) echo "http://127.0.0.1:7811/health" ;;
-    autolabel-worker) echo "http://127.0.0.1:7812/health" ;;
     edge-agent) echo "http://127.0.0.1:7813/health" ;;
     remote-worker) echo "http://127.0.0.1:60051/health" ;;
     control-plane-web) echo "http://127.0.0.1:${WEB_PORT}" ;;
@@ -88,8 +84,6 @@ service_port() {
   case "$1" in
     control-plane) echo "7800" ;;
     statistics) echo "7803" ;;
-    train-worker) echo "7811" ;;
-    autolabel-worker) echo "7812" ;;
     edge-agent) echo "7813" ;;
     remote-worker) echo "60051" ;;
     control-plane-web) echo "$WEB_PORT" ;;
@@ -177,18 +171,6 @@ service_command() {
         --config stats_service/config/config.example.toml \
         --set control_plane.url=http://127.0.0.1:7800 \
         --set server.advertise_url=http://127.0.0.1:7803
-      ;;
-    train-worker)
-      printf '%q ' "$PYTHON_BIN" -m train_worker.service \
-        --config train_worker/config/config.example.toml \
-        --set control_plane.url=http://127.0.0.1:7800 \
-        --set server.advertise_url=http://127.0.0.1:7811
-      ;;
-    autolabel-worker)
-      printf '%q ' "$PYTHON_BIN" -m autolabel_worker.service \
-        --config autolabel_worker/config/config.example.toml \
-        --set control_plane.url=http://127.0.0.1:7800 \
-        --set server.advertise_url=http://127.0.0.1:7812
       ;;
     edge-agent)
       printf '%q ' "$PYTHON_BIN" -m edge_agent.service \

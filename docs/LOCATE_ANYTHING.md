@@ -3,8 +3,8 @@
 LocateAnything is available through role-local configs:
 
 ```text
-autolabel_worker/config/config.example.toml  -> [locate_anything]
-edge_agent/config/config.example.toml        -> [locate_anything]
+autolabel/config/config.example.toml  -> [locate_anything]
+edge_agent/config/config.example.toml -> [locate_anything]
 ```
 
 ## Auto-label Mode
@@ -12,31 +12,14 @@ edge_agent/config/config.example.toml        -> [locate_anything]
 Run LocateAnything auto-labeling locally:
 
 ```bash
-python -m autolabel_worker.cli \
-  --config autolabel_worker/config/config.example.toml \
+python -m autolabel.main --cli \
+  --config autolabel/config/config.example.toml \
   --set runtime.mode=locate_anything \
   --set runtime.visualize=true \
   --set locate_anything.device=cuda \
   --set locate_anything.generation_mode=hybrid \
   --set locate_anything.max_images=20 \
   --json-summary
-```
-
-Submit the same kind of job through the Control Plane:
-
-```bash
-curl -X POST http://127.0.0.1:7800/api/v1/jobs \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "kind": "autolabel",
-    "payload": {
-      "mode": "locate_anything",
-      "visualize": true,
-      "locate_anything_device": "cuda",
-      "locate_anything_generation_mode": "hybrid",
-      "locate_anything_max_images": 20
-    }
-  }'
 ```
 
 ## Edge Mode

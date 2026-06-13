@@ -4,11 +4,6 @@ run_name = "exp001"
 log_file = "log.txt"
 log_level = "INFO"
 
-[node]
-id = "train-worker-001"
-role = "train_worker"
-endpoint = ""
-
 [class_map]
 names = ["Kitchen_waste", "Recyclable_waste", "Hazardous_waste", "Other_waste"]
 
@@ -48,19 +43,3 @@ opset = 17
 quantize = true
 quantize_mode = "dynamic"
 calib_samples = 32
-
-[server]
-host = "127.0.0.1"
-port = 7811
-api_token = ""
-api_token_env_name = "VISION_TRAIN_WORKER_API_TOKEN"
-advertise_url = ""
-
-[job_store]
-db_path = "../../work-dir/state/train_worker_jobs.db"
-
-[control_plane]
-url = "http://127.0.0.1:7800"
-api_token = ""
-api_token_env_name = "VISION_CONTROL_PLANE_API_TOKEN"
-heartbeat_interval_sec = 15

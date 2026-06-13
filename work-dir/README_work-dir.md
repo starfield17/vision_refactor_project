@@ -24,8 +24,8 @@ The active system uses role-owned configs:
 
 ```text
 control_plane/config/config.example.toml
-train_worker/config/config.example.toml
-autolabel_worker/config/config.example.toml
+train/config/config.example.toml
+autolabel/config/config.example.toml
 edge_agent/config/config.example.toml
 remote_worker/config/config.example.toml
 stats_service/config/config.example.toml

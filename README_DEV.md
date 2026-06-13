@@ -5,17 +5,19 @@
 The active codebase is a distributed vision system:
 
 ```text
-Control Plane -> registered nodes -> role workers -> core vision kernel/statistics
+Control Plane -> registered runtime nodes -> core vision kernel/statistics
 ```
 
-The Control Plane owns orchestration state. Role packages own execution state. The
-kernel remains framework/runtime logic and does not know about HTTP services.
+The Control Plane owns distributed runtime orchestration. Train and AutoLabel are
+local production tools that write model/data artifacts; they are not Control Plane nodes.
+The kernel remains framework/runtime logic and does not know about HTTP services.
 
 ## Package Boundaries
 
 ```text
 common/
   application/   HTTP helpers, job runner/store, node registration, service helpers
+  local_gui/     Shared PySide6 queue/log/theme helpers for local tools
   config/        role config loading and role-to-kernel config adapter
   types/         shared data/error types
 
@@ -30,11 +32,16 @@ control_plane/
   store.py       SQLite control-plane nodes/jobs
   web/           Vite React operations UI
 
-*_worker/ and *_agent/
-  config/        role-owned TOML schema and example
+train/ and autolabel/
+  config/        local tool TOML schema and example
+  gui/           PySide6 local task queue UI
+  cli.py         local direct-run entry
+
+*_agent/ and runtime services
+  config/        runtime TOML schema and example
   service.py     HTTP service for Control Plane integration
   worker.py      subprocess job entry when jobs are long-running
-  cli.py         local direct-run entry where applicable
+  cli.py         direct-run entry where applicable
 ```
 
 ## Config Rules
@@ -43,11 +50,8 @@ Each role uses its own TOML file. Do not add a new global config. Prefer these k
 
 ```text
 workspace.*
-node.*
-server.*
-job_store.*
-control_plane.*
 runtime.*
+node.* / server.* / job_store.* / control_plane.* for distributed runtime nodes only
 ```
 
 The `common.config.role_schema.role_to_kernel_config()` adapter exists only because
@@ -59,9 +63,7 @@ keys and should not expose old package names or old service names.
 1. Worker starts and calls `POST /api/v1/nodes/heartbeat`.
 2. Control Plane persists node identity, endpoint, role, status, and dispatch token.
 3. Client submits `POST /api/v1/jobs` with `kind` and `payload`.
-4. Control Plane maps `kind` to a role and forwards to that worker:
-   - `train` -> `train_worker`
-   - `autolabel` -> `autolabel_worker`
+4. Control Plane maps distributed runtime jobs to nodes:
    - `edge_run` -> `edge`
 5. Worker creates a local `JobStore` record and launches its subprocess runner.
 6. Control Plane stores the upstream job id and refreshes status/logs through worker APIs.
@@ -69,7 +71,7 @@ keys and should not expose old package names or old service names.
 ## Adding a New Role
 
 1. Create `<role>/config/schema.py` and `<role>/config/config.example.toml`.
-2. Add `node`, `server`, `job_store`, and `control_plane` sections if it participates in orchestration.
+2. Add `node`, `server`, `job_store`, and `control_plane` sections only if it participates in orchestration.
 3. Add a service with:
    - `GET /health`
    - `GET /api/v1/status`
@@ -114,12 +116,12 @@ It writes PID files and logs under `work-dir/tmp/quickstart/`, and it uses
 ```bash
 PYTHON=/path/to/python bash scripts/quickstart.sh up
 bash scripts/quickstart.sh status
-bash scripts/quickstart.sh logs train-worker
+bash scripts/quickstart.sh logs edge-agent
 bash scripts/quickstart.sh down
 ```
 
-The default local stack starts Control Plane, statistics, train worker, autolabel worker,
-edge agent, and the Control Plane Web dev server. It does not start `remote_worker` unless
+The default local stack starts Control Plane, statistics, edge agent, and the Control
+Plane Web dev server. It does not start `remote_worker` unless
 `QUICKSTART_REMOTE=1` is set, because remote inference usually needs a local model/GPU setup.
 
 Windows uses `scripts\quickstart.bat`, which delegates to `scripts\quickstart.ps1` with the same
@@ -128,7 +130,7 @@ local commands:
 ```bat
 scripts\quickstart.bat up
 scripts\quickstart.bat status
-scripts\quickstart.bat logs train-worker
+scripts\quickstart.bat logs edge-agent
 scripts\quickstart.bat down
 ```
 

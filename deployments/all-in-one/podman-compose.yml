@@ -42,40 +42,6 @@ services:
     volumes:
       - ../../work-dir:/app/work-dir:Z
 
-  train-worker:
-    build:
-      context: ../..
-      dockerfile: Containerfile
-    command: >
-      python -m train_worker.service
-      --config /app/train_worker/config/config.example.toml
-      --set server.host=${TRAIN_WORKER_HOST:-0.0.0.0}
-      --set server.api_token=${TRAIN_WORKER_API_TOKEN:-}
-      --set server.advertise_url=http://train-worker:7811
-      --set control_plane.url=http://control-plane:7800
-      --set control_plane.api_token=${CONTROL_PLANE_API_TOKEN:-}
-    ports:
-      - "${TRAIN_WORKER_PORT:-7811}:7811"
-    volumes:
-      - ../../work-dir:/app/work-dir:Z
-
-  autolabel-worker:
-    build:
-      context: ../..
-      dockerfile: Containerfile
-    command: >
-      python -m autolabel_worker.service
-      --config /app/autolabel_worker/config/config.example.toml
-      --set server.host=${AUTOLABEL_WORKER_HOST:-0.0.0.0}
-      --set server.api_token=${AUTOLABEL_WORKER_API_TOKEN:-}
-      --set server.advertise_url=http://autolabel-worker:7812
-      --set control_plane.url=http://control-plane:7800
-      --set control_plane.api_token=${CONTROL_PLANE_API_TOKEN:-}
-    ports:
-      - "${AUTOLABEL_WORKER_PORT:-7812}:7812"
-    volumes:
-      - ../../work-dir:/app/work-dir:Z
-
   edge-agent:
     build:
       context: ../..

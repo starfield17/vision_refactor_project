@@ -25,8 +25,6 @@ from control_plane.store import ControlPlaneStore
 
 FINAL_JOB_STATUSES = {"succeeded", "failed", "cancelled", "interrupted"}
 JOB_ROLE_MAP = {
-    "train": "train_worker",
-    "autolabel": "autolabel_worker",
     "edge_run": "edge",
 }
 

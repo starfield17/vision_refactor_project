@@ -100,8 +100,6 @@ function Get-ServiceNames {
     $names = @(
         "control-plane",
         "statistics",
-        "train-worker",
-        "autolabel-worker",
         "edge-agent",
         "control-plane-web"
     )
@@ -126,8 +124,6 @@ function Get-HealthUrl($Name) {
     switch ($Name) {
         "control-plane" { "http://127.0.0.1:7800/health" }
         "statistics" { "http://127.0.0.1:7803/health" }
-        "train-worker" { "http://127.0.0.1:7811/health" }
-        "autolabel-worker" { "http://127.0.0.1:7812/health" }
         "edge-agent" { "http://127.0.0.1:7813/health" }
         "remote-worker" { "http://127.0.0.1:60051/health" }
         "control-plane-web" { "http://127.0.0.1:$WebPort" }
@@ -139,8 +135,6 @@ function Get-ServicePort($Name) {
     switch ($Name) {
         "control-plane" { 7800 }
         "statistics" { 7803 }
-        "train-worker" { 7811 }
-        "autolabel-worker" { 7812 }
         "edge-agent" { 7813 }
         "remote-worker" { 60051 }
         "control-plane-web" { [int]$WebPort }
@@ -182,28 +176,6 @@ function Get-ServiceSpec($Name) {
                     "--config", "stats_service/config/config.example.toml",
                     "--set", "control_plane.url=http://127.0.0.1:7800",
                     "--set", "server.advertise_url=http://127.0.0.1:7803"
-                )
-            }
-        }
-        "train-worker" {
-            @{
-                File = $PythonBin
-                Args = @(
-                    "-m", "train_worker.service",
-                    "--config", "train_worker/config/config.example.toml",
-                    "--set", "control_plane.url=http://127.0.0.1:7800",
-                    "--set", "server.advertise_url=http://127.0.0.1:7811"
-                )
-            }
-        }
-        "autolabel-worker" {
-            @{
-                File = $PythonBin
-                Args = @(
-                    "-m", "autolabel_worker.service",
-                    "--config", "autolabel_worker/config/config.example.toml",
-                    "--set", "control_plane.url=http://127.0.0.1:7800",
-                    "--set", "server.advertise_url=http://127.0.0.1:7812"
                 )
             }
         }

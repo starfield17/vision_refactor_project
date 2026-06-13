@@ -1,4 +1,4 @@
-"""Autolabel worker CLI."""
+"""AutoLabel local CLI."""
 
 from __future__ import annotations
 
@@ -14,11 +14,11 @@ from common.application.autolabel_service import (
 from common.config.config_loader import apply_overrides, save_resolved_config
 from common.config.role_schema import role_to_kernel_config
 from common.types.errors import ConfigError
-from autolabel_worker.config.schema import load_config, validate_config
+from autolabel.config.schema import load_config, validate_config
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Run autolabel worker locally")
+    parser = argparse.ArgumentParser(description="Run local auto-labeling")
     parser.add_argument("--workdir", default=None)
     parser.add_argument("--config", required=True)
     parser.add_argument("--set", action="append", default=[], metavar="KEY=VALUE")
@@ -47,8 +47,8 @@ def main(argv: list[str] | None = None) -> int:
             workdir_override=str(Path(args.workdir).resolve()) if args.workdir else None,
         )
         role_cfg = validate_config(apply_overrides(role_cfg, overrides))
-        kernel_cfg = role_to_kernel_config(role_cfg, "autolabel", "autolabel_worker")
-        temp_path = Path(kernel_cfg["workspace"]["root"]) / "tmp" / "autolabel_worker.kernel.toml"
+        kernel_cfg = role_to_kernel_config(role_cfg, "autolabel", "autolabel")
+        temp_path = Path(kernel_cfg["workspace"]["root"]) / "tmp" / "autolabel.kernel.toml"
         save_resolved_config(kernel_cfg, temp_path)
         summary = run_autolabel(config_path=temp_path)
     except ConfigError as exc:

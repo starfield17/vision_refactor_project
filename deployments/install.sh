@@ -115,8 +115,6 @@ ensure_env() {
     all-in-one)
       ensure_env_key CONTROL_PLANE_API_TOKEN "$(random_token)"
       ensure_env_key STATISTICS_API_TOKEN "$(random_token)"
-      ensure_env_key TRAIN_WORKER_API_TOKEN "$(random_token)"
-      ensure_env_key AUTOLABEL_WORKER_API_TOKEN "$(random_token)"
       ensure_env_key EDGE_AGENT_API_TOKEN "$(random_token)"
       ;;
     edge)
@@ -147,8 +145,6 @@ port_value() {
     CONTROL_PLANE_PORT) echo "${CONTROL_PLANE_PORT:-7800}" ;;
     CONTROL_PLANE_WEB_PORT) echo "${CONTROL_PLANE_WEB_PORT:-7801}" ;;
     STATISTICS_PORT) echo "${STATISTICS_PORT:-7803}" ;;
-    TRAIN_WORKER_PORT) echo "${TRAIN_WORKER_PORT:-7811}" ;;
-    AUTOLABEL_WORKER_PORT) echo "${AUTOLABEL_WORKER_PORT:-7812}" ;;
     EDGE_AGENT_PORT) echo "${EDGE_AGENT_PORT:-7813}" ;;
     REMOTE_WORKER_PORT) echo "${REMOTE_WORKER_PORT:-60051}" ;;
     *) return 1 ;;
@@ -158,7 +154,7 @@ port_value() {
 profile_ports() {
   case "$PROFILE" in
     all-in-one)
-      printf '%s\n' CONTROL_PLANE_PORT CONTROL_PLANE_WEB_PORT STATISTICS_PORT TRAIN_WORKER_PORT AUTOLABEL_WORKER_PORT EDGE_AGENT_PORT
+      printf '%s\n' CONTROL_PLANE_PORT CONTROL_PLANE_WEB_PORT STATISTICS_PORT EDGE_AGENT_PORT
       ;;
     edge)
       printf '%s\n' EDGE_AGENT_PORT

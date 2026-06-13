@@ -9,11 +9,9 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
-from autolabel_worker.config.schema import DEFAULT_CONFIG as AUTOLABEL_DEFAULT
 from common.application.api_common import get_json, post_json
 from common.config.schema import deep_merge_dict
 from edge_agent.config.schema import DEFAULT_CONFIG as EDGE_DEFAULT
-from train_worker.config.schema import DEFAULT_CONFIG as TRAIN_DEFAULT
 
 
 def _free_port() -> int:
@@ -120,17 +118,13 @@ def _role_cfg(
 
 
 class ControlPlaneHttpE2ETests(unittest.TestCase):
-    def test_control_plane_dispatch_refreshes_and_proxies_logs_over_http(self) -> None:
-        from autolabel_worker.service import create_app as create_autolabel_app
+    def test_control_plane_dispatch_refreshes_and_proxies_edge_logs_over_http(self) -> None:
         from control_plane.api import create_app as create_control_app
         from edge_agent.service import create_app as create_edge_app
-        from train_worker.service import create_app as create_train_app
 
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             cp_port = _free_port()
-            train_port = _free_port()
-            autolabel_port = _free_port()
             edge_port = _free_port()
             cp_url = f"http://127.0.0.1:{cp_port}"
             cp_cfg = {
@@ -153,57 +147,35 @@ class ControlPlaneHttpE2ETests(unittest.TestCase):
                 },
                 "nodes": {"offline_ttl_sec": 45},
             }
-            train_cfg = _role_cfg(TRAIN_DEFAULT, root, "train.db", train_port, cp_url)
-            autolabel_cfg = _role_cfg(
-                AUTOLABEL_DEFAULT, root, "autolabel.db", autolabel_port, cp_url
-            )
             edge_cfg = _role_cfg(EDGE_DEFAULT, root, "edge.db", edge_port, cp_url)
-            train_path = root / "train.toml"
-            autolabel_path = root / "autolabel.toml"
             edge_path = root / "edge.toml"
-            for path in (train_path, autolabel_path, edge_path):
-                path.write_text("", encoding="utf-8")
+            edge_path.write_text("", encoding="utf-8")
 
-            with (
-                patch("train_worker.service.SubprocessJobRunner", _ImmediateRunner),
-                patch("autolabel_worker.service.SubprocessJobRunner", _ImmediateRunner),
-                patch("edge_agent.service.SubprocessJobRunner", _ImmediateRunner),
-            ):
+            with patch("edge_agent.service.SubprocessJobRunner", _ImmediateRunner):
                 control_app = create_control_app(cp_cfg)
-                train_app = create_train_app(train_cfg, train_path)
-                autolabel_app = create_autolabel_app(autolabel_cfg, autolabel_path)
                 edge_app = create_edge_app(edge_cfg, edge_path)
 
             with (
                 _UvicornThread(control_app, cp_port),
-                _UvicornThread(train_app, train_port),
-                _UvicornThread(autolabel_app, autolabel_port),
                 _UvicornThread(edge_app, edge_port),
             ):
-                for base_url in (
-                    f"http://127.0.0.1:{train_port}",
-                    f"http://127.0.0.1:{autolabel_port}",
-                    f"http://127.0.0.1:{edge_port}",
-                ):
-                    response = post_json(base_url, "/api/v1/nodes/register", payload={})
-                    self.assertTrue(response["ok"])
+                response = post_json(
+                    f"http://127.0.0.1:{edge_port}", "/api/v1/nodes/register", payload={}
+                )
+                self.assertTrue(response["ok"])
 
                 nodes = get_json(cp_url, "/api/v1/nodes")["nodes"]
-                self.assertEqual(
-                    {node["role"] for node in nodes},
-                    {"train_worker", "autolabel_worker", "edge"},
-                )
+                self.assertEqual({node["role"] for node in nodes}, {"edge"})
 
-                for kind in ("train", "autolabel", "edge_run"):
-                    created = post_json(
-                        cp_url, "/api/v1/jobs", payload={"kind": kind, "payload": {}}
-                    )
-                    self.assertTrue(created["ok"])
-                    job_id = created["job"]["job_id"]
-                    refreshed = get_json(cp_url, f"/api/v1/jobs/{job_id}")["job"]
-                    self.assertEqual(refreshed["status"], "succeeded")
-                    logs = get_json(cp_url, f"/api/v1/jobs/{job_id}/logs")["text"]
-                    self.assertIn(f"smoke job {kind}", logs)
+                created = post_json(
+                    cp_url, "/api/v1/jobs", payload={"kind": "edge_run", "payload": {}}
+                )
+                self.assertTrue(created["ok"])
+                job_id = created["job"]["job_id"]
+                refreshed = get_json(cp_url, f"/api/v1/jobs/{job_id}")["job"]
+                self.assertEqual(refreshed["status"], "succeeded")
+                logs = get_json(cp_url, f"/api/v1/jobs/{job_id}/logs")["text"]
+                self.assertIn("smoke job edge_run", logs)
 
 
 if __name__ == "__main__":

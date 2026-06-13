@@ -33,14 +33,14 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = [
-  "autolabel_worker*",
+  "autolabel*",
   "common*",
   "control_plane*",
   "core*",
   "edge_agent*",
   "remote_worker*",
   "stats_service*",
-  "train_worker*",
+  "train*",
 ]
 
 [tool.ruff]

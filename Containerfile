@@ -8,8 +8,6 @@ COPY pyproject.toml README.md ./
 COPY common ./common
 COPY core ./core
 COPY control_plane ./control_plane
-COPY train_worker ./train_worker
-COPY autolabel_worker ./autolabel_worker
 COPY edge_agent ./edge_agent
 COPY remote_worker ./remote_worker
 COPY stats_service ./stats_service
@@ -23,7 +21,6 @@ RUN python -m pip install --no-cache-dir --upgrade pip \
       onnxconverter-common>=1.14.0 \
       fastapi>=0.115.0 \
       uvicorn>=0.30.0 \
-      PySide6>=6.8.0 \
       lmdb>=1.7.5 \
       decord>=0.6.0 \
       peft \
